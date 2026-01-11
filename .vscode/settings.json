@@ -1,0 +1,27 @@
+{
+  "cSpell.words": [
+    "Allman",
+    "Dont",
+    "Emscripten",
+    "EMSDK",
+    "GLES",
+    "glfw",
+    "gmock",
+    "IWYU",
+    "Lsizei",
+    "Lsizeiptr",
+    "MSVC",
+    "Noexcept",
+    "Programiv",
+    "renderbuffer",
+    "Renderbuffers",
+    "Shaderiv",
+    "STRINGIZE",
+    "Verilog",
+    "vertexarray",
+    "vertexarrays",
+    "Werror",
+    "Wextra",
+    "Wpedantic"
+  ]
+}
