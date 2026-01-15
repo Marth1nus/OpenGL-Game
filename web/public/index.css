@@ -1,0 +1,20 @@
+body {
+  display: grid;
+  grid-column: auto;
+  justify-content: space-evenly;
+  background-color: black;
+  gap: 0.5em;
+}
+#canvas {
+  width: 98vw;
+  height: 98vh;
+  border: 1px dashed gray;
+}
+#output {
+  resize: none;
+  font-family: monospace;
+  background: none;
+  overflow: scroll;
+  color: white;
+  padding: 0.5em;
+}
