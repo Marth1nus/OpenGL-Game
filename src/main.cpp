@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <concepts>
 #include <expected>
 #include <filesystem>
@@ -30,29 +31,37 @@
 |*================================*|
 \*================================*/
 
-#undef USE_GLAD
-#define USE_GLAD
-
-#if defined(USE_GLAD)
-#include <glad/glad.h>
-auto constexpr g_using_glad = true;
-#else  // defined(USE_GLAD)
-#include <GLES3/gl3.h>
-auto constexpr g_using_glad = false;
-#endif // defined(USE_GLAD)
-#include <glfw/glfw3.h>
-
-#if defined(__EMSCRIPTEN__)
-auto constexpr g_using_emscripten = true;
+#if /* */ defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#define RUN_MAIN_LOOP []<typename T>(T &main_loop) static            \
+{                                                                    \
+  auto static constinit s_main_loop_ptr = static_cast<T *>(nullptr); \
+  /*                 */ s_main_loop_ptr = &main_loop;                \
+  ::emscripten_set_main_loop(+[] static { if (not (*s_main_loop_ptr)()) ::emscripten_cancel_main_loop(); }, 0, 1);                  \
+}
 #else  // defined(__EMSCRIPTEN__)
-auto constexpr g_using_emscripten = false;
+#define RUN_MAIN_LOOP []<typename T>(T &main_loop) static { while (main_loop()); }
 #endif // defined(__EMSCRIPTEN__)
+
+#if /* */ defined(_WIN32) or defined(_WIN64)
+#include <glad/glad.h>
+#define INIT_GLAD(load_proc) ::gladLoadGLES2Loader(reinterpret_cast<::GLADloadproc>(load_proc))
+#define ftell64              ::_ftelli64
+#define fseek64              ::_fseeki64
+#else //  defined(_WIN32) or defined(_WIN64)
+#include <GLES3/gl3.h>
+#define INIT_GLAD(load_proc) true
+#define ftell64              ::ftello
+#define fseek64              ::fseeko
+#endif // defined(_WIN32) or defined(_WIN64)
+
+#include <glfw/glfw3.h>
 
 /*================================*\
 |*================================*|
 \*================================*/
 
-#if defined(LAMBDA) or defined(glCheckError)
+#if /* */ defined(LAMBDA) or defined(glCheckError)
 #error "Macro name collision"
 #endif // defined(LAMBDA) or defined(glCheckError)
 
@@ -73,22 +82,23 @@ namespace utilities
     auto message = std::format(message_format, std::forward<decltype(message_args)>(message_args)...);
     throw exception{std::move(message)};
   }
-  auto /*  */ read_all(char const *file_path) noexcept -> std::expected<std::string, std::error_code>
+  auto /*  */ read_all(char const *file_path) -> std::expected<std::string, std::error_code>
   {
     auto const file     = std::fopen(file_path, "rb");
     auto const file_ptr = std::unique_ptr<std::FILE, decltype(&std::fclose)>{file, &std::fclose};
-    auto       len      = decltype(std::ftell(file)){};
+    auto       len      = decltype(ftell64(file)){};
     auto       res      = std::string{};
-    if (not file_ptr or
-        std::fseek(file, 0, SEEK_END) != 0 or
-        (len = std::ftell(file), len < 0) or
-        std::fseek(file, 0, SEEK_SET) != 0 or
+    if ((file_ptr) and
+        (fseek64(file, 0, SEEK_END) == 0) and
+        (len = ftell64(file),
+         len >= 0) and
+        (fseek64(file, 0, SEEK_SET) == 0) and
         (res.resize_and_overwrite(len, [file](char *buf, size_t len)
                                   { return std::fread(buf, sizeof(char), len, file); }),
-         len != res.size()) or
-        std::ferror(file))
+         res.size() == static_cast<size_t>(len)))
+      return {std::move(res)};
+    else
       return std::unexpected{std::error_code{errno, std::generic_category()}};
-    return {std::move(res)};
   }
 } // namespace utilities
 using utilities::runtime_assert;
@@ -142,7 +152,7 @@ struct renderer
         };
         struct allocators
         {
-#define LAMBDA(fn) +[](std::span<uint32_t> target) noexcept -> void { (fn)(static_cast<GLsizei>(target.size()), target.data()); }
+#define LAMBDA(fn) +[](std::span<uint32_t> target) static noexcept -> void { (fn)(static_cast<GLsizei>(target.size()), target.data()); }
             auto inline static constexpr buffers /*       */ = allocator{.create_handles = LAMBDA(glGenBuffers /*       */), .delete_handles = LAMBDA(glDeleteBuffers /*       */)};
             auto inline static constexpr framebuffers /*  */ = allocator{.create_handles = LAMBDA(glGenFramebuffers /*  */), .delete_handles = LAMBDA(glDeleteFramebuffers /*  */)};
             auto inline static constexpr renderbuffers /* */ = allocator{.create_handles = LAMBDA(glGenRenderbuffers /* */), .delete_handles = LAMBDA(glDeleteRenderbuffers /* */)};
@@ -171,15 +181,15 @@ struct renderer
           runtime_assert(capacity <= std::numeric_limits<decltype(m_capacity)>::max(), "max possible capacity exceeded");
           runtime_assert(capacity >= m_size, "attempt to delete active handles");
           runtime_assert(m_allocator, "null {} access", "allocator");
-          auto const old = all();
-          m_handles      = capacity ? new uint32_t[capacity] : nullptr;
-          m_capacity     = static_cast<decltype(m_capacity)>(capacity);
-          std::ranges::copy(old.subspan(0, std::min(capacity, old.size())), m_handles);
+          auto const old         = all();
+          auto const old_handles = std::move(m_handles);
+          m_handles              = capacity ? std::make_unique<uint32_t[]>(capacity) : nullptr;
+          m_capacity             = static_cast<decltype(m_capacity)>(capacity);
+          std::ranges::copy(old.subspan(0, std::min(capacity, old.size())), m_handles.get());
           /**/ if (capacity < old.size())
             m_allocator->delete_handles(old.subspan(capacity));
           else if (capacity > old.size())
             m_allocator->create_handles(all().subspan(old.size()));
-          if (not old.empty()) delete[] old.data();
         }
         auto /*  */ reserve(size_t capacity) -> void
         {
@@ -202,18 +212,18 @@ struct renderer
 
         auto inline get_allocator() const noexcept { return m_allocator; }
 
-        auto inline all /*      */ () const noexcept -> std::span<uint32_t const> { return std::span{m_handles, m_capacity}; }
+        auto inline all /*      */ () const noexcept -> std::span<uint32_t const> { return std::span{m_handles.get(), m_capacity}; }
         auto inline active /*   */ () const noexcept -> std::span<uint32_t const> { return all().subspan(0, m_size); }
         auto inline inactive /* */ () const noexcept -> std::span<uint32_t const> { return all().subspan(m_size); }
 
       private:
-        auto inline all /*      */ () /* */ noexcept -> std::span<uint32_t /* */> { return std::span{m_handles, m_capacity}; }
+        auto inline all /*      */ () /* */ noexcept -> std::span<uint32_t /* */> { return std::span{m_handles.get(), m_capacity}; }
         auto inline active /*   */ () /* */ noexcept -> std::span<uint32_t /* */> { return all().subspan(0, m_size); }
         auto inline inactive /* */ () /* */ noexcept -> std::span<uint32_t /* */> { return all().subspan(m_size); }
-        allocator const *m_allocator = 0;
-        uint32_t        *m_handles   = 0,
-                 m_size              = 0,
-                 m_capacity          = 0;
+        allocator const            *m_allocator = 0;
+        std::unique_ptr<uint32_t[]> m_handles   = 0;
+        uint32_t /*              */ m_size      = 0,
+                                    m_capacity  = 0;
     };
     handle_cache
         buffers /*       */ {&handle_cache::allocators::buffers /*       */},
@@ -235,7 +245,7 @@ struct renderer
     {
       runtime_assert(not shader_sources.empty(), "can not compile a shader from no sources");
       auto const version_offset             = shader_sources.front().find("#version");
-      auto static constexpr get_string_size = [](std::string_view sv)
+      auto static constexpr get_string_size = [](std::string_view sv) static
       { return static_cast<GLsizei>(sv.size()); };
       runtime_assert(version_offset != std::string_view::npos, "Shader must start with a #version directive: \n{}", shader_sources.front());
       auto mbr_buf     = std::array<std::byte, (sizeof(char const *) + sizeof(GLsizei)) * 8>{};
@@ -280,9 +290,9 @@ struct application
   public:
     struct layer
     {
-        /**/ virtual ~layer() noexcept = 0 {}
-        auto virtual update() -> void  = 0;
-        auto virtual render() -> void  = 0;
+        /**/ virtual ~layer() noexcept {}
+        auto virtual update() -> void = 0;
+        auto virtual render() -> void = 0;
     };
     using layer_t       = layer;
     using layers_t      = std::vector<std::shared_ptr<layer_t>>;
@@ -291,7 +301,7 @@ struct application
   public:
     auto inline static get() noexcept -> auto & { return *runtime_assert(s_instance, "null {} access", "application"); }
 
-    /**/ application()
+    /**/ /*  */ application()
     {
       runtime_assert(not s_instance, "application singleton violation");
       s_instance = this;
@@ -299,10 +309,9 @@ struct application
       m_window = glfwCreateWindow(720, 720, "game", nullptr, nullptr);
       runtime_assert(m_window, "{} init fail", "window");
       glfwMakeContextCurrent(m_window);
-      if constexpr (g_using_glad) runtime_assert(
-          gladLoadGLES2Loader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)), "{} init fail", "glad");
+      runtime_assert(INIT_GLAD(glfwGetProcAddress), "{} init fail", "glad");
     }
-    /**/ ~application()
+    /**/ /*  */ ~application()
     {
       m_layers_tasks = {};
       m_layers       = {};
@@ -334,7 +343,7 @@ struct application
     auto inline schedule_layer_push(std::ptrdiff_t index = -1, Args &&...args) -> void
     {
       return schedule_layer_push([args_tuple = std::tuple{std::forward<Args>(args)...}]() mutable
-                                 { return std::apply([](auto &...args)
+                                 { return std::apply([](auto &...args) static
                                                      { return std::make_shared<T>(std::move(args)...); },
                                                      args_tuple); },
                                  index);
@@ -351,15 +360,16 @@ struct application
           });
     }
 
-    auto inline get_window() const -> auto & { return *runtime_assert(m_window, "null {} access", "main window"); }
-    auto inline get_renderer() const noexcept -> auto & { return m_renderer; }
-    auto inline get_renderer() /* */ noexcept -> auto & { return m_renderer; }
-    auto inline get_layers() const noexcept { return std::span{m_layers}; }
+    auto inline get_window /*   */ () const /*    */ -> auto & { return *runtime_assert(m_window, "null {} access", "main window"); }
+    auto inline get_renderer /* */ () const noexcept -> auto & { return m_renderer; }
+    auto inline get_renderer /* */ () /* */ noexcept -> auto & { return m_renderer; }
+    auto inline get_layers /*   */ () const noexcept /*     */ { return std::span{m_layers}; }
 
     auto /*  */ run() -> int
     {
-      while (not glfwWindowShouldClose(m_window))
+      auto const main_loop = [this]() -> bool
       {
+        if (glfwWindowShouldClose(m_window)) return false;
         { // layer tasks
           for (auto &task : std::exchange(m_layers_tasks, {})) try
             {
@@ -376,7 +386,9 @@ struct application
         for (auto const &layer : get_layers()) layer->update();
         for (auto const &layer : get_layers()) layer->render();
         glfwSwapBuffers(m_window);
-      }
+        return true;
+      };
+      RUN_MAIN_LOOP(main_loop);
       return EXIT_SUCCESS;
     }
 
@@ -430,7 +442,7 @@ struct layers::boids : layer
     {
         uint32_t              id{}, padding{};
         glm::vec2             position{}, velocity{}, acceleration{};
-        auto inline constexpr operator<=>(boid const &) const noexcept -> auto = default;
+        auto inline constexpr operator<=>(boid const &o) const noexcept -> auto { return id <=> o.id; }
     };
 
   public:
@@ -441,6 +453,7 @@ struct layers::boids : layer
       m_fid = glCreateShader(GL_FRAGMENT_SHADER);
       m_vbo = application::get().get_renderer().buffers.activate();
       m_vao = application::get().get_renderer().vertexarrays.activate();
+      glfwSwapInterval(1);
       verify_values();
       setup();
     }
@@ -462,6 +475,8 @@ struct layers::boids : layer
     }
     auto setup() -> void
     {
+      std::println(stdout, "Hello from stdout");
+
       glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
       glBufferData(GL_ARRAY_BUFFER, /* size */ 1, nullptr, GL_STATIC_DRAW); // temp buffer data
 
@@ -484,10 +499,11 @@ struct layers::boids : layer
       glCheckError();
 
       m_boids.clear();
-      m_time        = static_cast<float>(glfwGetTime());
-      m_vbo_size    = 0;
-      m_tick        = 0;
-      m_render_tick = 0;
+      m_time                = static_cast<float>(glfwGetTime());
+      m_vbo_size            = 0;
+      m_tick                = 0;
+      m_render_tick         = 0;
+      m_max_total_neighbors = 0;
 
       glEnable(GL_BLEND);
       glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -546,17 +562,21 @@ struct layers::boids : layer
         }
       }
 
+      auto const subspace_offsets_radius = static_cast<int32_t>(std::ceil(m_view_distance / m_subspace_width));
+      auto const subspace_offsets        = std::views::iota(-subspace_offsets_radius, subspace_offsets_radius + 1);
+      auto const subspaces_count         = (m_max_position - m_min_position) / m_subspace_width;
+      auto const get_subspace_id         = [subspaces_count](boid const &b) -> glm::vec2
+      { return glm::i32vec2{b.position * subspaces_count}; };
       for (auto &[id, boids] : m_boid_subspaces) boids.clear();
-      for (auto &boid : m_boids) m_boid_subspaces[glm::floor(boid.position * static_cast<float>(m_subspace_count))].push_back(boid);
+      for (auto &boid : m_boids) m_boid_subspaces[get_subspace_id(boid)].push_back(boid);
 
+      auto total_neighbors = 0zu;
       for (auto &boid : m_boids)
       {
-        auto const [n_boid_neighbors] = [&]
+        auto const [n_neighbors] = [&]
         {
           m_boid_neighbors.clear();
-          auto const subspace_id             = glm::floor(boid.position * static_cast<float>(m_subspace_count));
-          auto const subspace_offsets_radius = static_cast<int32_t>(std::ceil(m_view_distance / m_subspace_width));
-          auto const subspace_offsets        = std::views::iota(-subspace_offsets_radius, subspace_offsets_radius + 1);
+          auto const subspace_id = get_subspace_id(boid);
           for (auto const y : subspace_offsets)
             for (auto const x : subspace_offsets)
               for (auto const skip_self_check = not(x == 0 and y == 0);
@@ -601,41 +621,60 @@ struct layers::boids : layer
           if (glm::length(mouse_gap) < 0.1f) mouse_flee = glm::normalize(mouse_gap) * 10.0f;
           return std::tuple{mouse_flee};
         }();
-
-        boid.acceleration += m_weight_separation /* */ * separation /* */ +
-                             m_weight_alignment /*  */ * alignment /*  */ +
-                             m_weight_cohesion /*   */ * cohesion /*   */ +
-                             mouse_flee;
-        if (glm::length(boid.acceleration) < m_min_acceleration) boid.acceleration *= m_min_acceleration / glm::length(boid.acceleration);
-        if (glm::length(boid.acceleration) > m_max_acceleration) boid.acceleration *= m_max_acceleration / glm::length(boid.acceleration);
-        boid.velocity += boid.acceleration * dt;
-        if (glm::length(boid.velocity) < m_min_velocity) boid.velocity *= m_min_velocity / glm::length(boid.velocity);
-        if (glm::length(boid.velocity) > m_max_velocity) boid.velocity *= m_max_velocity / glm::length(boid.velocity);
-        boid.position += boid.velocity * dt;
-        if (glm::abs(boid.position.x) > 1.0f + m_boid_width) boid.position.x = glm::clamp(-boid.position.x, -1.0f - m_boid_width, 1.0f + m_boid_width);
-        if (glm::abs(boid.position.y) > 1.0f + m_boid_width) boid.position.y = glm::clamp(-boid.position.y, -1.0f - m_boid_width, 1.0f + m_boid_width);
+        auto static constexpr clamp_length = [](glm::vec2 value, float min, float max) static -> glm::vec2
+        {
+          if (glm::length(value) < min) value *= min / glm::length(value);
+          if (glm::length(value) > max) value *= max / glm::length(value);
+          return value;
+        };
+        total_neighbors   += n_neighbors;
+        boid.acceleration  = clamp_length(
+            boid.acceleration +
+                m_weight_separation /* */ * separation /* */ +
+                m_weight_alignment /*  */ * alignment /*  */ +
+                m_weight_cohesion /*   */ * cohesion /*   */ +
+                mouse_flee,
+            m_min_acceleration,
+            m_max_acceleration);
+        boid.velocity = clamp_length(
+            boid.velocity + boid.acceleration * dt,
+            m_min_velocity,
+            m_max_velocity);
+        boid.position      += boid.velocity * dt;
+        auto const clamped  = glm::clamp(boid.position, m_min_position - m_boid_width, m_max_position + m_boid_width);
+        if (boid.position.x != clamped.x) boid.position.x = -clamped.x;
+        if (boid.position.y != clamped.y) boid.position.y = -clamped.y;
       }
+      m_max_total_neighbors = std::max(m_max_total_neighbors, total_neighbors);
 
-      if constexpr (not g_using_emscripten) // debug display
-      {
+      { // debug output
         auto duration                  = static_cast<float>(glfwGetTime()) - time;
         auto thread_local ave_duration = duration;
         ave_duration                   = (ave_duration * 99.0f + duration * 1.0f) / 100.0f;
         auto const lines               = std::array{
-            std::pair{std::string_view{"  s/frames"}, static_cast<float>(ave_duration)},
-            std::pair{std::string_view{"  frames/s"}, static_cast<float>(1.0f / ave_duration)},
-            std::pair{std::string_view{"      tick"}, static_cast<float>(m_tick)},
-            std::pair{std::string_view{" subspaces"}, static_cast<float>(m_boid_subspaces.size())},
+            std::pair{std::string_view{"     s/frames"}, static_cast<float>(ave_duration)},
+            std::pair{std::string_view{"     frames/s"}, static_cast<float>(1.0f / ave_duration)},
+            std::pair{std::string_view{"         tick"}, static_cast<float>(m_tick)},
+            std::pair{std::string_view{"    neighbors"}, static_cast<float>(total_neighbors / 2zu)},
+            std::pair{std::string_view{"max neighbors"}, static_cast<float>(m_max_total_neighbors / 2zu)},
+            std::pair{std::string_view{"    subspaces"}, static_cast<float>(m_boid_subspaces.size())},
         };
-        auto buf_table = std::array<char, 32 * 2 * lines.size()>{};
-        auto buf_float = std::array<char, 16>{};
-        auto table     = buf_table.data();
-        table          = std::format_to(table, "\033[s");
-        for (auto row = 1; auto const [title, value] : lines)
-          table = std::format_to(table, "\033[{};80H\033[46m {:>10} \033[42m {:>10} \033[m", row++, title, //
-                                 std::string_view{buf_float.data(), static_cast<size_t>(std::format_to(buf_float.data(), "{:4.5f}", value) - buf_float.data())});
-        table = std::format_to(table, "\033[u");
-        std::print("{}", std::string_view{buf_table.data(), static_cast<size_t>(table - buf_table.data())});
+        { // print lines
+          auto table_buf = std::array<char, 32zu * 2 * lines.size()>{};
+          auto float_buf = std::array<char, 16zu /*              */>{};
+          auto table_mbr = std::pmr::monotonic_buffer_resource{table_buf.data(), table_buf.size()};
+          auto float_mbr = std::pmr::monotonic_buffer_resource{float_buf.data(), float_buf.size()};
+          auto table_str = std::pmr::string(&table_mbr);
+          auto float_str = std::pmr::string(&float_mbr);
+          auto float_it  = std::back_inserter((float_str.clear(), float_str.reserve(float_buf.size()), float_str));
+          auto table_it  = std::back_inserter((table_str.clear(), table_str.reserve(table_buf.size()), table_str));
+          std::format_to(table_it, "\033[s");
+          for (auto row = 1; auto const [title, value] : lines)
+            std::format_to(table_it, "\033[{};0H\033[999C\033[34D\033[46m {:>15} \033[42m {:>15} \033[m", row++, title, //
+                           (float_str.clear(), std::format_to(float_it, "{:7.6f}", value), float_str));
+          std::format_to(table_it, "\033[u");
+          std::print("{}", table_str), table_str.clear(), float_str.clear();
+        }
       }
     }
     auto render() -> void override
@@ -662,7 +701,7 @@ struct layers::boids : layer
   private:
     using m_subspaces_hashmap_t = std::unordered_map<
         glm::i32vec2, std::vector<boid>,
-        decltype([]<typename T>(glm::vec<2, T> const p)
+        decltype([]<typename T>(glm::vec<2, T> const p) static
                  { return std::hash<T>{}(p.x) xor
                           std::hash<T>{}(p.y); })>;
     struct m_uniforms_t
@@ -670,7 +709,7 @@ struct layers::boids : layer
         int32_t boid_width{};
     };
     uint32_t              m_pid{}, m_vid{}, m_fid{}, m_vbo{}, m_vao{};
-    size_t                m_vbo_size{}, m_tick{}, m_render_tick{};
+    size_t                m_vbo_size{}, m_tick{}, m_render_tick{}, m_max_total_neighbors{};
     m_uniforms_t          m_uniforms{};
     glm::float32_t        m_time{};
     std::vector<boid>     m_boids{}, m_boid_neighbors{};
@@ -731,9 +770,8 @@ struct layers::boids : layer
     float m_weight_separation = +0.11f,
           m_weight_alignment  = +1.9f,
           m_weight_cohesion   = +1.3f;
-    size_t m_tick_rate        = 60zu,
-           m_boid_count       = 800zu,
-           m_subspace_count   = static_cast<size_t>(std::ceil((m_max_position - m_min_position) / m_subspace_width));
+    size_t /**/ m_tick_rate   = 60zu,
+                m_boid_count  = 800zu;
 };
 
 /*================================*\
