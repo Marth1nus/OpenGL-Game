@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenGL-Game</title>
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    <textarea
+      id="output"
+      rows="8"
+      placeholder="stdout output"
+      disabled></textarea>
+    <input
+      type="button"
+      value="Fullscreen"
+      onclick="Module.requestFullscreen(false, true)" />
+    <a href="OpenGL-Game.html">Emscripten Generated Page</a>
+    <script src="index.js"></script>
+    <script src="OpenGL-Game.js"></script>
+  </body>
+</html>

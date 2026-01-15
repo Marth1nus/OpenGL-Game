@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "cmakeMinimumRequired": { "major": 4, "minor": 2, "patch": 0 },
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
   "configurePresets": [
     {
       "name": "native",
@@ -10,6 +10,11 @@
       "binaryDir": "${sourceDir}/build/${hostSystemName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     },
     {
@@ -30,9 +35,6 @@
       "displayName": "Emscripten Multi-Config",
       "description": "Emscripten web build using Ninja generator",
       "binaryDir": "${sourceDir}/build/Emscripten",
-      "cacheVariables": {
-        "WEB_PUBLIC_DIR": "${sourceDir}/pages/"
-      },
       "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
       "condition": {
         "type": "notEquals",

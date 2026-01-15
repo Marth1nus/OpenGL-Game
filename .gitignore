@@ -1,3 +1,10 @@
-/build*/
-/vendor/*
+# CMake build
+/build/
+
+# Vendor Code (downloaded by CMake)
+/vendor/
 !/vendor/glad/
+
+# Web Build Emscripten output
+/web/public/OpenGL-Game.*
+

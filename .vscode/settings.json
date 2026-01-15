@@ -1,9 +1,13 @@
 {
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "cmake.useCMakePresets": "always",
   "cSpell.words": [
     "Allman",
     "Dont",
     "Emscripten",
     "EMSDK",
+    "fseeki",
+    "ftelli",
     "GLES",
     "glfw",
     "gmock",
@@ -12,7 +16,10 @@
     "Lsizeiptr",
     "MSVC",
     "Noexcept",
+    "opengl",
+    "popd",
     "Programiv",
+    "pushd",
     "renderbuffer",
     "Renderbuffers",
     "Shaderiv",
@@ -20,8 +27,10 @@
     "Verilog",
     "vertexarray",
     "vertexarrays",
+    "WEBGL",
     "Werror",
     "Wextra",
     "Wpedantic"
-  ]
+  ],
+  "liveServer.settings.root": "/web/public/"
 }
