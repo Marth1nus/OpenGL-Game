@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <memory_resource>
+#include <numeric>
 #include <optional>
 #include <print>
 #include <queue>
@@ -30,5 +31,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+/* TODO: consider turning into precompiler header */
 
 #endif // ENGINE_CORE_HPP

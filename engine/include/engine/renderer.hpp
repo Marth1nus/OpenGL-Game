@@ -38,7 +38,12 @@ namespace engine::utilities::gl
   auto inline /*     */ check_error(std::source_location source_location = std::source_location::current()) -> void
   {
     while (auto const e = glGetError() - GL_NO_ERROR)
-      runtime_assert<error>(false, "OpenGL Error: \"{}\" from {}:{}:{} in function {}", error_to_string(e + GL_NO_ERROR).data(), source_location.file_name(), source_location.line(), source_location.column(), source_location.function_name());
+      runtime_assert<error>(false, "OpenGL Error: \"{}\" from {}:{}:{} in function {}", //
+                            error_to_string(e + GL_NO_ERROR),
+                            source_location.file_name(),
+                            source_location.line(),
+                            source_location.column(),
+                            source_location.function_name());
   }
 } // namespace engine::utilities::gl
 namespace engine

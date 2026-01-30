@@ -21,7 +21,6 @@ struct game::layers::clear : layer
     /**/ clear(clear const &) noexcept                = default;
     auto operator=(clear const &) noexcept -> clear & = default;
     /**/ ~clear() noexcept override {}
-    auto update() -> update_delay override { return update_delay::max(); }
     auto render() -> void override
     {
       glClearColor(color.r, color.g, color.b, color.a);
@@ -111,6 +110,11 @@ struct game::layers::boids : layer
     }
 
   private:
+    auto inline static thread_local random = [rd = std::random_device{}]<typename T = float>(T min = -1.0f, T max = 1.0f) mutable
+      requires std::is_arithmetic_v<T>
+    {
+      return std::uniform_real_distribution{min, max}(rd);
+    };
     auto setup() -> void
     {
       std::println(stdout, "Hello from stdout");
@@ -147,11 +151,6 @@ struct game::layers::boids : layer
       m_subspaces_allocation_cache = {};
       m_neighbors_allocation_cache = {};
       m_statistics                 = {};
-    }
-    auto static random() -> float
-    {
-      auto thread_local rd = std::random_device{};
-      return std::uniform_real_distribution<float>{-1.0f, 1.0f}(rd);
     }
 
   public:

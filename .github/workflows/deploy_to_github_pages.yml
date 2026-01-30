@@ -1,4 +1,4 @@
-name: Deploy Emscripten Build to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -18,12 +18,29 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
+
+      - name: Cache Emscripten
+        uses: actions/cache@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ runner.os }}-latest
+          restore-keys: emsdk-${{ runner.os }}
 
       - name: Install Emscripten
-        uses: mymindstorm/setup-emsdk@v12
-        with:
-          version: latest
+        run: |
+          if [ ! -d ~/emsdk ]; then
+            git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+          fi
+          pushd ~/emsdk
+          git pull
+          ./emsdk install  latest
+          ./emsdk activate latest
+          source ./emsdk_env.sh
+          popd
+          echo "PATH=$PATH"                 >> "$GITHUB_ENV"
+          echo "EMSDK=$EMSDK"               >> "$GITHUB_ENV"
+          echo "EMSDK_NODE=$EMSDK_NODE"     >> "$GITHUB_ENV"
 
       - name: Build Project
         run: cmake --preset web
@@ -32,7 +49,7 @@ jobs:
         run: cmake --build --preset web --config Release --verbose
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: './web/public/'
 

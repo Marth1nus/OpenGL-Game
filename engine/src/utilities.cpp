@@ -12,9 +12,9 @@
 #define fseek64 ::fseeko
 #endif // defined(_WIN32) or defined(_WIN64)
 
-auto engine::utilities::read_all(char const *file_path) -> std::expected<std::string, std::error_code>
+auto engine::utilities::read_all(char const *const file_path, char const *const mode) -> std::expected<std::string, std::error_code>
 {
-  auto const file     = std::fopen(file_path, "rb");
+  auto const file     = std::fopen(file_path, mode);
   auto const file_ptr = std::unique_ptr<std::FILE, decltype([](std::FILE *p) static
                                                             { return std::fclose(p); })>{file};
   auto       len      = decltype(ftell64(file)){};
