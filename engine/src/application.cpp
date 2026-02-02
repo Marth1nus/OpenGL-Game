@@ -69,6 +69,7 @@ auto engine::application::run() -> int
         try
         {
           task(m_layers);
+          if (m_layers.empty()) m_renderer = {}; /* TODO: Reconsider. Could cause issues later on. */
           runtime_assert(m_layers_tasks.empty(), "{0:?} can not be scheduled from a {0:?} task", "between frame layer manipulation");
         }
         catch (std::exception const &e)
@@ -126,6 +127,14 @@ auto engine::application::run() -> int
     }
     /* render layers */ if (true)
     {
+      /* viewport fit: center zoom to fit */ { /* TODO: this feature is hardcoded consider setting up an enum? */
+        int window_width, window_height;
+        glfwGetWindowSize(m_window, &window_width, &window_height);
+        auto const vmax     = std::max(window_width, window_height);
+        auto const window_x = (window_width - vmax) / 2;
+        auto const window_y = (window_height - vmax) / 2;
+        glViewport(window_x, window_y, vmax, vmax);
+      }
       std::this_thread::sleep_until(render_appointment);
       for (auto const &layer : get_layers())
       {
@@ -142,6 +151,6 @@ auto engine::application::run() -> int
     }
     return true;
   };
-  RUN_MAIN_LOOP(main_loop); // equivalent to `while (main_loop());`
+  RUN_MAIN_LOOP(main_loop); /* equivalent to `while (main_loop());` */
   return EXIT_SUCCESS;
 }

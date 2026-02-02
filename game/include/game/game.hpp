@@ -19,6 +19,7 @@ namespace game::layers
 
   struct clear;
   struct boids;
+  struct game_of_life;
 
   /*====================*\
   |*==== make layer ====*|
@@ -28,6 +29,7 @@ namespace game::layers
 #define TEMPLATE_SPECIALIZE(layer_type) template <> \
                                         auto inline constexpr layer_name_unchecked<layer_type> = #layer_type
   TEMPLATE_SPECIALIZE(boids);
+  TEMPLATE_SPECIALIZE(game_of_life);
 #undef TEMPLATE_SPECIALIZE
   template <typename T>
   concept named_layer = layer_name_unchecked<T> != nullptr;
@@ -45,6 +47,7 @@ namespace game::layers
 #define TEMPLATE_SPECIALIZE(layer_type) template <> \
                                         auto inline constexpr game_name_unchecked<layer_type> = #layer_type
   TEMPLATE_SPECIALIZE(boids);
+  TEMPLATE_SPECIALIZE(game_of_life);
 #undef TEMPLATE_SPECIALIZE
   template <typename T>
   concept named_game = game_name_unchecked<T> != nullptr;

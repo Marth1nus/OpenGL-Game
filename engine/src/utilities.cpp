@@ -12,6 +12,24 @@
 #define fseek64 ::fseeko
 #endif // defined(_WIN32) or defined(_WIN64)
 
+auto engine::utilities::print_table(std::span<std::tuple<std::string_view, double> const> const &lines) -> void
+{
+  auto str_buf = std::array<char, 0x04'00zu>{};
+  auto str_mbr = std::pmr::monotonic_buffer_resource{str_buf.data(), str_buf.size()};
+  auto str     = std::pmr::string{&str_mbr};
+  auto num_buf = std::array<char, 32zu>{};
+  auto num_mbr = std::pmr::monotonic_buffer_resource{num_buf.data(), num_buf.size()};
+  auto num     = std::pmr::string{&num_mbr};
+  str.reserve(str_buf.size());
+  num.reserve(num_buf.size());
+  for (auto row = 1z; auto const &[title, value] : lines)
+  {
+    num.clear();
+    std::format_to(std::back_inserter(num), "{:7.6f}", value);
+    std::format_to(std::back_inserter(str), "\033[{};0H\033[999C\033[36D\033[46m {:>16} \033[42m {:>16} \033[m", row++, title, num);
+  }
+  std::print("\033[s{}\033[u", str);
+}
 auto engine::utilities::read_all(char const *const file_path, char const *const mode) -> std::expected<std::string, std::error_code>
 {
   auto const file     = std::fopen(file_path, mode);

@@ -29,8 +29,9 @@ auto engine::renderer::handle_cache::activate() -> uint32_t
 }
 auto engine::renderer::handle_cache::deactivate(uint32_t handle) -> void
 {
-  auto const it = std::ranges::find(active(), handle);
-  runtime_assert(it != active().end(), "handle {} not active", handle);
+  auto const active_reverse = std::views::reverse(active());
+  auto const it             = std::ranges::find(active_reverse, handle);
+  runtime_assert(it != active_reverse.end(), "handle {} not active", handle);
   std::swap(*it, all()[--m_size]);
 }
 
@@ -44,10 +45,10 @@ auto engine::renderer::compile_shader(uint32_t shader, std::span<std::string_vie
   auto static constexpr inline_reserved   = 16zu;
   alignas(char const *) auto sources_buf  = std::array<std::byte, sizeof(char const *) * inline_reserved>{};
   alignas(GLsizei /**/) auto lengths_buf  = std::array<std::byte, sizeof(GLsizei /**/) * inline_reserved>{};
-  auto sources_mbr                        = std::pmr::monotonic_buffer_resource{sources_buf.data(), std::span{sources_buf}.size_bytes()};
-  auto lengths_mbr                        = std::pmr::monotonic_buffer_resource{lengths_buf.data(), std::span{lengths_buf}.size_bytes()};
-  auto sources                            = std::pmr::vector<char const *>{std::from_range, shader_sources | std::views::transform(&std::string_view::data), &sources_mbr};
-  auto lengths                            = std::pmr::vector<GLsizei /**/>{std::from_range, shader_sources | std::views::transform(get_string_GLsizei /**/), &lengths_mbr};
+  auto                       sources_mbr  = std::pmr::monotonic_buffer_resource{sources_buf.data(), std::span{sources_buf}.size_bytes()};
+  auto                       lengths_mbr  = std::pmr::monotonic_buffer_resource{lengths_buf.data(), std::span{lengths_buf}.size_bytes()};
+  auto                       sources      = std::pmr::vector<char const *>{std::from_range, shader_sources | std::views::transform(&std::string_view::data), &sources_mbr};
+  auto                       lengths      = std::pmr::vector<GLsizei /**/>{std::from_range, shader_sources | std::views::transform(get_string_GLsizei /**/), &lengths_mbr};
   sources.front()                        += static_cast<GLsizei>(version_offset);
   lengths.front()                        -= static_cast<GLsizei>(version_offset);
   glShaderSource(shader, static_cast<GLsizei>(shader_sources.size()), sources.data(), lengths.data());

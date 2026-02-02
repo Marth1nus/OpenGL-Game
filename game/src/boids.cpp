@@ -41,12 +41,6 @@ struct game::layers::boids : layer
           verify_sorted("max neighbors" /*       */, std::array{1zu /*      */, max_neighbors /*     */, boid_count /*        */});
         }
     };
-    struct statistics
-    {
-        double average_update_duration{},
-            average_neighbors{},
-            max_neighbors{};
-    };
     struct opengl_handles
     {
         uint32_t pid{}, vid{}, fid{}, vbo{}, vao{};
@@ -54,6 +48,15 @@ struct game::layers::boids : layer
     struct uniform_locations
     {
         int32_t boid_width{};
+    };
+    struct statistics
+    {
+        std::chrono::steady_clock::time_point
+               frame_start             = std::chrono::steady_clock::now();
+        double average_neighbors       = 0.0,
+               average_cycle_duration  = 0.0,
+               average_update_duration = 0.0;
+        size_t max_neighbors           = 0zu;
     };
     struct boid
     {
@@ -69,31 +72,27 @@ struct game::layers::boids : layer
       m_opengl.pid = glCreateProgram();
       m_opengl.vid = glCreateShader(GL_VERTEX_SHADER);
       m_opengl.fid = glCreateShader(GL_FRAGMENT_SHADER);
-      m_opengl.vbo = app().get_renderer().buffers.activate();
-      m_opengl.vao = app().get_renderer().vertexarrays.activate();
+      m_opengl.vbo = app().get_renderer().buffers /*      */.activate();
+      m_opengl.vao = app().get_renderer().vertexarrays /* */.activate();
       setup();
     }
     /**/ ~boids() override
     {
-      m_opengl.pid = (glDeleteProgram(m_opengl.pid), 0);
-      m_opengl.vid = (glDeleteShader(m_opengl.vid), 0);
-      m_opengl.fid = (glDeleteShader(m_opengl.fid), 0);
-      m_opengl.vbo = (app().get_renderer().buffers.deactivate(m_opengl.vbo), 0);
-      m_opengl.vao = (app().get_renderer().vertexarrays.deactivate(m_opengl.vao), 0);
+      m_opengl.pid = (glDeleteProgram(m_opengl.pid), 0u);
+      m_opengl.vid = (glDeleteShader(m_opengl.vid), 0u);
+      m_opengl.fid = (glDeleteShader(m_opengl.fid), 0u);
+      m_opengl.vbo = (app().get_renderer().buffers /*      */.deactivate(m_opengl.vbo), 0u);
+      m_opengl.vao = (app().get_renderer().vertexarrays /* */.deactivate(m_opengl.vao), 0u);
     }
 
   private:
-    auto inline static thread_local random = [rd = std::random_device{}]<typename T = float>(T min = -1.0f, T max = 1.0f) mutable
-      requires std::is_arithmetic_v<T>
-    {
-      return std::uniform_real_distribution{min, max}(rd);
-    };
+    auto inline static thread_local random = [rd = std::random_device{}]<std::floating_point T = float>(T min = -1.0f, T max = 1.0f) mutable
+    { return std::uniform_real_distribution{min, max}(rd); };
     auto setup() -> void
     {
-      std::println(stdout, "Hello from stdout");
-
       glBindBuffer(GL_ARRAY_BUFFER, m_opengl.vbo);
       glBufferData(GL_ARRAY_BUFFER, /* size */ 1, nullptr, GL_STATIC_DRAW); // temp buffer data
+      glCheckError();
 
       glBindVertexArray(m_opengl.vao);
       for (auto attrib_index = 0; auto const member : {&boid::position, &boid::velocity, &boid::acceleration})
@@ -129,6 +128,7 @@ struct game::layers::boids : layer
   public:
     auto update() -> update_delay override
     {
+      auto const update_start     = std::chrono::steady_clock::now();
       auto const dt               = 1.0f / m_settings.tick_rate;
       auto       total_neighbors  = 0zu;
       auto       max_neighbors    = 0zu;
@@ -137,7 +137,8 @@ struct game::layers::boids : layer
       auto const subspaces_count  = glm::vec2{static_cast<float>(m_settings.subspace_count())};
       auto const get_subspace_id  = [subspaces_count](boid const &b) -> subspace_id
       { return {b.position * subspaces_count}; };
-      auto const mouse_pos = [&] { // and viewport update (TODO: move viewport update to application?)
+      auto const mouse_pos = [&]
+      {
         int    window_width, window_height;
         double mouse_x, mouse_y;
         glfwGetWindowSize(&app().get_window(), &window_width, &window_height);
@@ -147,7 +148,6 @@ struct game::layers::boids : layer
         auto const window_y  = (window_height - vmax) / 2;
         auto const mouse_pos = glm::vec2{/* */ (mouse_x - window_x) / vmax * 2.0 - 1.0,
                                          1.0 - (mouse_y - window_y) / vmax * 2.0 /* */};
-        glViewport(window_x, window_y, vmax, vmax);
         return mouse_pos;
       }();
       auto const n_boids = [&]
@@ -256,22 +256,27 @@ struct game::layers::boids : layer
         if (boid.position.x != clamped.x) boid.position.x = -clamped.x;
         if (boid.position.y != clamped.y) boid.position.y = -clamped.y;
       }
-      total_neighbors                      /= 2; // remove double counted connections
+      total_neighbors                      /= 2zu; // remove double counted connections
       auto const average_neighbors          = static_cast<double>(total_neighbors / n_boids);
-      auto static update_start_time         = std::chrono::steady_clock::now();
-      auto const update_end_time            = std::chrono::steady_clock::now();
-      auto const update_duration            = std::chrono::duration_cast<std::chrono::duration<double>>(update_end_time - update_start_time).count();
-      /*       */ update_start_time         = update_end_time;
-      m_statistics.average_update_duration  = (m_statistics.average_update_duration * 99.0 + 1.0 * update_duration) / 100.0;
-      m_statistics.average_neighbors        = (m_statistics.max_neighbors /*     */ * 99.0 + 1.0 * average_neighbors) / 100.0;
-      m_statistics.max_neighbors            = std::max(m_statistics.max_neighbors, static_cast<double>(max_neighbors));
-      utilities::terminal_table(std::tuple{
-          std::tuple{"         tick", m_tick},
-          std::tuple{"     s/frames", /*  */ m_statistics.average_update_duration},
-          std::tuple{"     frames/s", 1.0f / m_statistics.average_update_duration},
-          std::tuple{"ave neighbors", m_statistics.average_neighbors},
-          std::tuple{"max neighbors", m_statistics.max_neighbors},
-          std::tuple{"    subspaces", subspaces.size()},
+      auto const update_end                 = std::chrono::steady_clock::now();
+      auto const cycle_end                  = update_end;
+      auto const cycle_start                = std::exchange(m_statistics.frame_start, cycle_end);
+      auto const update_duration            = std::chrono::duration_cast<std::chrono::duration<double>>(update_end /* */ - update_start /* */).count();
+      auto const cycle_duration             = std::chrono::duration_cast<std::chrono::duration<double>>(cycle_end /*  */ - cycle_start /*  */).count();
+      m_statistics.max_neighbors            = std::max(m_statistics.max_neighbors, max_neighbors);
+      m_statistics.average_neighbors        = (m_statistics.average_neighbors /*       */ * 99.0 + 1.0 * average_neighbors /*  */) / 100.0;
+      m_statistics.average_update_duration  = (m_statistics.average_update_duration /* */ * 99.0 + 1.0 * update_duration /*    */) / 100.0;
+      m_statistics.average_cycle_duration   = (m_statistics.average_cycle_duration /*  */ * 99.0 + 1.0 * cycle_duration /*     */) / 100.0;
+      utilities::print_table({
+          {"         tick", static_cast<double>(m_tick)},
+          {"     s/update", /* */ m_statistics.average_update_duration},
+          {"    updates/s", 1.0 / m_statistics.average_update_duration},
+          {"      s/cycle", /* */ m_statistics.average_cycle_duration},
+          {"     cycles/s", 1.0 / m_statistics.average_cycle_duration},
+          {" update/cycle", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration},
+          {"ave neighbors", static_cast<double>(m_statistics.average_neighbors)},
+          {"max neighbors", static_cast<double>(m_statistics.max_neighbors)},
+          {"    subspaces", static_cast<double>(subspaces.size())},
       });
       m_tick++;
       return static_cast<update_delay>(dt);
@@ -312,9 +317,9 @@ struct game::layers::boids : layer
 
   private:
     simulation_settings       m_settings       = {};
-    statistics                m_statistics     = {};
-    uniform_locations         m_uniforms       = {};
     opengl_handles            m_opengl         = {};
+    uniform_locations         m_uniforms       = {};
+    statistics                m_statistics     = {};
     size_t                    m_vbo_bytes_size = {}, m_tick = {}, m_render_tick = {};
     std::vector<boid>         m_boids                      = {};
     boids_grouped_by_subspace m_subspaces_allocation_cache = {};

@@ -13,8 +13,8 @@ namespace engine
   {
     public:
       auto inline static get() -> application & { return *runtime_assert(s_instance, "null {} access", "application"); }
-      using clock = std::chrono::steady_clock;
-      struct layer
+      using clock   = std::chrono::steady_clock;
+      using layer_t = struct layer
       {
           using update_delay = std::chrono::duration<double>;
           /**/ virtual ~layer() noexcept {}
@@ -24,12 +24,11 @@ namespace engine
         protected:
           auto inline static app() -> application & { return application::get(); }
       };
+      using layers_t      = std::vector<std::shared_ptr<layer_t>>;
+      using layers_task_t = std::function<void(layers_t &layers)>;
 
     private:
       auto inline static constinit s_instance = static_cast<application *>(nullptr);
-      using layer_t                           = layer;
-      using layers_t                          = std::vector<std::shared_ptr<layer_t>>;
-      using layers_task_t                     = std::function<void(layers_t &layers)>;
       using layer_update_appointment_t        = struct layer_update_appointment
       {
           clock::time_point      appointment                      = {};

@@ -51,6 +51,7 @@ namespace engine
   struct renderer
   {
     public:
+      /* TODO: Consider refactor for `[...active, ...inactive, ...deactivated]` to avoid reuse.  */
       struct handle_cache
       {
         public:
@@ -83,7 +84,7 @@ namespace engine
           /**/ inline handle_cache(handle_cache const &&o) noexcept = delete;
           auto inline operator=(handle_cache /* */ &&o) -> handle_cache & { return this->~handle_cache(), *new (this) handle_cache{std::move(o)}; }
           auto inline operator=(handle_cache const &o) -> handle_cache & = delete;
-          /**/ inline ~handle_cache() { m_size = 0, set_capacity(0); }
+          /**/ inline ~handle_cache() { set_capacity(0); }
 
           auto /*  */ set_capacity(size_t capacity) -> void;
           auto /*  */ reserve(size_t capacity) -> void;
@@ -107,11 +108,11 @@ namespace engine
                                       m_capacity  = 0;
       };
       handle_cache
-          buffers /*       */ {&handle_cache::allocators::buffers /*       */},
-          framebuffers /*  */ {&handle_cache::allocators::framebuffers /*  */},
-          renderbuffers /* */ {&handle_cache::allocators::renderbuffers /* */},
-          textures /*      */ {&handle_cache::allocators::textures /*      */},
-          vertexarrays /*  */ {&handle_cache::allocators::vertexarrays /*  */};
+          buffers       = {&handle_cache::allocators::buffers /*       */},
+          framebuffers  = {&handle_cache::allocators::framebuffers /*  */},
+          renderbuffers = {&handle_cache::allocators::renderbuffers /* */},
+          textures      = {&handle_cache::allocators::textures /*      */},
+          vertexarrays  = {&handle_cache::allocators::vertexarrays /*  */};
 
     public:
       /**/ inline renderer() noexcept                                = default;

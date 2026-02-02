@@ -3,6 +3,7 @@ add_library(game STATIC
   include/game/game.hpp
 
   src/boids.cpp
+  src/game_of_life.cpp
   src/game.cpp
   src/startup.cpp
 
