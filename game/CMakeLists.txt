@@ -2,7 +2,9 @@ add_library(game STATIC
 
   include/game/game.hpp
 
+  src/boids.cpp
   src/game.cpp
+  src/startup.cpp
 
 )
 target_include_directories(game PUBLIC include)

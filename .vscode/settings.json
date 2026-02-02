@@ -3,6 +3,7 @@
   "cmake.useCMakePresets": "always",
   "cSpell.words": [
     "Allman",
+    "boids",
     "Dont",
     "Emscripten",
     "EMSDK",
