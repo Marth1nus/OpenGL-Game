@@ -1,20 +1,45 @@
 #include <game/game.hpp>
 
-auto game::layers::make_layer(std::string_view name) -> std::shared_ptr<layer>
+template <>
+auto game::layers::make_layer<game::layers::clear>() -> std::shared_ptr<layer>
 {
-  auto const static layer_makers = std::unordered_map<std::string_view, std::shared_ptr<layer> (*)()>{
-      {layer_name<boids /*        */>, &make_layer<boids /*        */>},
-      {layer_name<game_of_life /* */>, &make_layer<game_of_life /* */>},
-  };
-  runtime_assert(layer_makers.contains(name), "game {:?} not found", name);
-  return layer_makers.at(name)();
+  return std::make_shared<clear>();
 }
-auto game::layers::push_game(std::string_view name, engine::application &app) -> void
+template <>
+auto game::layers::push_game<game::layers::clear>(engine::application &app) -> void
 {
-  auto const static game_pushers = std::unordered_map<std::string_view, void (*)(engine::application &)>{
-      {game_name<boids /*        */>, &push_game<boids /*        */>},
-      {game_name<game_of_life /* */>, &push_game<game_of_life /* */>},
-  };
-  runtime_assert(game_pushers.contains(name), "game {:?} not found", name);
-  game_pushers.at(name)(app);
+  app.schedule_layer_push<clear>();
+}
+
+using namespace game::layers;
+using named_layer_map_mapped_t /* */ = struct named_layer_map_mapped_t
+{
+    decltype(&make_layer /* */<clear>) make_layer = {};
+    decltype(&push_game /*  */<clear>) push_game  = {};
+};
+auto const named_layer_map = []<typename... T>()
+{
+  return std::unordered_map{std::pair{
+      std::string_view{layer_name<T>},
+      named_layer_map_mapped_t{
+          .make_layer = &make_layer<T>,
+          .push_game  = &push_game<T>,
+      }}...};
+}.operator()<    //
+    clear,       //
+    boids,       //
+    game_of_life //
+    >();
+
+auto game::layers::make_layer /* */ (std::string_view name /*                     */) -> std::shared_ptr<layer>
+{
+  runtime_assert(named_layer_map.contains(name), "unknown layer name {:?}", name);
+  auto const make_layer = runtime_assert(named_layer_map.at(name).make_layer, "function nullptr in {:?}:{:?}", "make_layer", name);
+  return make_layer();
+}
+auto game::layers::push_game /*  */ (std::string_view name, engine::application &app) -> void /*             */
+{
+  runtime_assert(named_layer_map.contains(name), "unknown layer name {:?}", name);
+  auto const push_game = runtime_assert(named_layer_map.at(name).push_game, "function nullptr in {:?}:{:?}", "push_game", name);
+  return push_game(app);
 }

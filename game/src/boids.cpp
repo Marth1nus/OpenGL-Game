@@ -268,15 +268,16 @@ struct game::layers::boids : layer
       m_statistics.average_update_duration  = (m_statistics.average_update_duration /* */ * 99.0 + 1.0 * update_duration /*    */) / 100.0;
       m_statistics.average_cycle_duration   = (m_statistics.average_cycle_duration /*  */ * 99.0 + 1.0 * cycle_duration /*     */) / 100.0;
       utilities::print_table({
-          {"         tick", static_cast<double>(m_tick)},
+          {"        title", "Boids"},
+          {"         tick", m_tick},
+          {"update/cycle%", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration * 100.0},
           {"     s/update", /* */ m_statistics.average_update_duration},
           {"    updates/s", 1.0 / m_statistics.average_update_duration},
           {"      s/cycle", /* */ m_statistics.average_cycle_duration},
           {"     cycles/s", 1.0 / m_statistics.average_cycle_duration},
-          {" update/cycle", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration},
-          {"ave neighbors", static_cast<double>(m_statistics.average_neighbors)},
-          {"max neighbors", static_cast<double>(m_statistics.max_neighbors)},
-          {"    subspaces", static_cast<double>(subspaces.size())},
+          {"ave neighbors", m_statistics.average_neighbors},
+          {"max neighbors", m_statistics.max_neighbors},
+          {"    subspaces", subspaces.size()},
       });
       m_tick++;
       return static_cast<update_delay>(dt);

@@ -74,8 +74,8 @@ struct game::layers::game_of_life : layer
       auto       cell_rd        = std::random_device{};
       auto       cell_dist      = std::uniform_real_distribution{0.0, 100.0};
       auto const cell_threshold = m_settings.init_distribution;
-      for (auto const [tid, fbo] : {std::pair{m_handles.tid0, m_handles.fbo0},
-                                    std::pair{m_handles.tid1, m_handles.fbo1}})
+      for (auto const &[tid, fbo] : {std::pair{m_handles.tid0, m_handles.fbo0},
+                                     std::pair{m_handles.tid1, m_handles.fbo1}})
       {
         auto const width  = static_cast<GLsizei>(m_settings.width);
         auto const height = static_cast<GLsizei>(m_settings.height);
@@ -152,12 +152,13 @@ struct game::layers::game_of_life : layer
       m_statistics.average_update_duration = (m_statistics.average_update_duration /* */ * 99.0 + 1.0 * update_duration /* */) / 100.0;
       m_statistics.average_cycle_duration  = (m_statistics.average_cycle_duration /*  */ * 99.0 + 1.0 * cycle_duration /*  */) / 100.0;
       utilities::print_table({
-          {"         tick", static_cast<double>(m_tick)},
+          {"        title", "Game Of Life"},
+          {"         tick", m_tick},
+          {"update/cycle%", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration * 100.0},
           {"     s/update", /* */ m_statistics.average_update_duration},
           {"    updates/s", 1.0 / m_statistics.average_update_duration},
           {"      s/cycle", /* */ m_statistics.average_cycle_duration},
           {"     cycles/s", 1.0 / m_statistics.average_cycle_duration},
-          {" update/cycle", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration},
       });
 
       m_tick++;

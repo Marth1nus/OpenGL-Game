@@ -51,5 +51,5 @@ cmake --build --preset native
   - WebGL2
 - **Platforms**:
   - Windows
-  - Linux (low testing)
+  - Linux (tested on wsl arch-linux)
   - Emscripten (web)

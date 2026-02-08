@@ -30,9 +30,25 @@ namespace engine::utilities
     return std::tuple{range.subspan(0zu, unsorted_size),
                       range.subspan(/**/ unsorted_size)};
   }
-  auto /*  */ /*     */ print_table(std::span<std::tuple<std::string_view, double> const> const &lines) -> void;
-  auto inline /*     */ print_table(std::initializer_list<std::tuple<std::string_view, double>> const &lines) -> void { return print_table(std::span{lines.begin(), lines.size()}); }
-  auto /*  */ /*     */ read_all(char const *const file_path, char const *const mode = "r") -> std::expected<std::string, std::error_code>;
+
+  template <typename T>
+  auto inline constexpr static_cast_lambda = []<typename U>(U &&value) static
+    requires std::constructible_from<T, U>
+  { return static_cast<T>(std::forward<U>(value)); };
+
+  using print_table_column_t                                  = std::variant<std::nullptr_t, std::string_view, intmax_t, uintmax_t, double_t>;
+  auto inline constexpr print_table_lines_inline_buffer_count = 16zu;
+  auto /*  */ /*     */ print_table_from_spans(std::span<std::span<print_table_column_t const> const> const lines) -> void;
+  auto /*  */ /*     */ print_table(std::initializer_list<std::initializer_list<print_table_column_t>> lines) -> void;
+
+  auto /*  */ /*     */ read_all(char const *const /*      */ file_path, char const *const mode = "r") -> std::expected<std::string, std::error_code>;
+  auto inline /*     */ read_all(std::filesystem::path const &file_path, char const *const mode = "r") -> decltype(read_all(file_path.string().c_str(), mode))
+  {
+    if constexpr (std::convertible_to<decltype(file_path.c_str()), char const *>)
+      return read_all(file_path.c_str(), mode);
+    else
+      return read_all(file_path.string().c_str(), mode);
+  }
 
 } // namespace engine::utilities
 namespace engine { using utilities::runtime_assert; }

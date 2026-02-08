@@ -20,14 +20,13 @@ namespace game::layers
   struct clear;
   struct boids;
   struct game_of_life;
-
-  /*====================*\
-  |*==== make layer ====*|
-  \*====================*/
+  
   template <typename T>
   auto inline constexpr layer_name_unchecked = static_cast<char const *>(nullptr);
-#define TEMPLATE_SPECIALIZE(layer_type) template <> \
-                                        auto inline constexpr layer_name_unchecked<layer_type> = #layer_type
+#define TEMPLATE_SPECIALIZE(layer_type) \
+  template <>                           \
+  auto inline constexpr layer_name_unchecked<layer_type> = #layer_type
+  TEMPLATE_SPECIALIZE(clear);
   TEMPLATE_SPECIALIZE(boids);
   TEMPLATE_SPECIALIZE(game_of_life);
 #undef TEMPLATE_SPECIALIZE
@@ -36,24 +35,9 @@ namespace game::layers
   template <named_layer T>
   auto inline constexpr layer_name = layer_name_unchecked<T>;
   template <named_layer T>
-  auto make_layer(/*                 */) -> std::shared_ptr<layer>;
-  auto make_layer(std::string_view name) -> std::shared_ptr<layer>;
-
-  /*===================*\
-  |*==== push game ====*|
-  \*===================*/
-  template <typename T>
-  auto inline constexpr game_name_unchecked = static_cast<char const *>(nullptr);
-#define TEMPLATE_SPECIALIZE(layer_type) template <> \
-                                        auto inline constexpr game_name_unchecked<layer_type> = #layer_type
-  TEMPLATE_SPECIALIZE(boids);
-  TEMPLATE_SPECIALIZE(game_of_life);
-#undef TEMPLATE_SPECIALIZE
-  template <typename T>
-  concept named_game = game_name_unchecked<T> != nullptr;
-  template <named_game T>
-  auto inline constexpr game_name = game_name_unchecked<T>;
-  template <named_game T>
+  auto make_layer(/*                 */ /*                     */ /*                       */) -> std::shared_ptr<layer>;
+  auto make_layer(std::string_view name /*                     */ /*                       */) -> std::shared_ptr<layer>;
+  template <named_layer T>
   auto push_game(/*                  */ engine::application &app = engine::application::get()) -> void;
   auto push_game(std::string_view name, engine::application &app = engine::application::get()) -> void;
 
