@@ -2,7 +2,7 @@
 
 auto engine::startup(application &app) -> void
 {
-  game::layers::push_game("game_of_life", app);
+  game::layers::push_game("boids", app);
   glfwSetKeyCallback(
       &app.get_window(), /* TODO: Implement Menu Layer */
       +[](GLFWwindow *window, int key, int scancode, int action, int mods) static
