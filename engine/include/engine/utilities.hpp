@@ -13,10 +13,12 @@ namespace engine::utilities
     requires(std::constructible_from<exception, std::string> and std::constructible_from<bool, T>)
   auto inline /*     */ runtime_assert(T &&value, std::format_string<Args...> message_format = "failed runtime assert", Args &&...message_args) -> T
   {
-    if (static_cast<bool>(std::forward<T>(value))) return std::forward<T>(value);
+    if (static_cast<bool>(std::forward<T>(value))) [[likely]]
+      return std::forward<T>(value);
     auto message = std::format(message_format, std::forward<Args>(message_args)...);
     throw exception{std::move(message)};
   }
+
   template <typename value_t, typename compare_t = std::ranges::less, typename project_t = std::identity>
     requires std::sortable<std::ranges::iterator_t<std::span<value_t>>, compare_t, project_t>
   auto /*  */ constexpr heap_sort_partial(std::span<value_t> const range, size_t const n = std::numeric_limits<size_t>::max(), compare_t compare = {}, project_t project = {}) -> auto /* [unsorted, sorted] */
@@ -36,7 +38,25 @@ namespace engine::utilities
     requires std::constructible_from<T, U>
   { return static_cast<T>(std::forward<U>(value)); };
 
-  using print_table_column_t                                  = std::variant<std::nullptr_t, std::string_view, intmax_t, uintmax_t, double_t>;
+  struct print_table_column_t
+  {
+      template <typename T>
+        requires(std::constructible_from<std::string_view, T> or std::integral<std::remove_cvref_t<T>> or std::floating_point<std::remove_cvref_t<T>>)
+      /**/ inline constexpr print_table_column_t(T &&value) noexcept
+      {
+        /**/ if constexpr (std::constructible_from<std::string_view, T>)
+          variant.emplace<std::string_view>(std::forward<T>(value));
+        else if constexpr (std::signed_integral<std::remove_cvref_t<T>>)
+          variant.emplace<intmax_t>(std::forward<T>(value));
+        else if constexpr (std::unsigned_integral<std::remove_cvref_t<T>>)
+          variant.emplace<uintmax_t>(std::forward<T>(value));
+        else if constexpr (std::floating_point<std::remove_cvref_t<T>>)
+          variant.emplace<double_t>(std::forward<T>(value));
+        else
+          static_assert(false);
+      }
+      std::variant<std::string_view, intmax_t, uintmax_t, double_t> variant = "";
+  };
   auto inline constexpr print_table_lines_inline_buffer_count = 16zu;
   auto /*  */ /*     */ print_table_from_spans(std::span<std::span<print_table_column_t const> const> const lines) -> void;
   auto /*  */ /*     */ print_table(std::initializer_list<std::initializer_list<print_table_column_t>> lines) -> void;

@@ -1,18 +1,19 @@
+#include <engine/events.hpp>
 #include <game/game.hpp>
 
-auto engine::startup(application &app) -> void
+struct temp_control_layer : engine::application::layer
 {
-  game::layers::push_game("boids", app);
-  glfwSetKeyCallback(
-      &app.get_window(), /* TODO: Implement Menu Layer */
-      +[](GLFWwindow *window, int key, int scancode, int action, int mods) static
+    auto on_event(std::any const &event_any) -> void override
+    {
+      if (auto const event_ptr = std::any_cast<engine::events::key_event>(&event_any))
       {
-        (void)window, (void)scancode; /* unused */
+        auto const &event    = *event_ptr,
+                   &ev       = event;
         auto const next_game = [&] -> std::string_view
         {
-          if ((mods & GLFW_MOD_ALT) == 0 or
-              (action != GLFW_PRESS)) return {};
-          switch (key)
+          if ((ev.mods & GLFW_MOD_ALT) == 0 or
+              (ev.action != GLFW_PRESS)) return {};
+          switch (ev.key)
           {
             case GLFW_KEY_1: return "boids";
             case GLFW_KEY_2: return "game_of_life";
@@ -21,16 +22,17 @@ auto engine::startup(application &app) -> void
         }();
         if (not next_game.empty())
         {
-          try
-          {
-            auto &app = engine::application::get();
-            app.schedule_layer_manipulation(&engine::application::layers_t::clear);
-            game::layers::push_game(next_game, app);
-          }
-          catch (std::exception const &e)
-          {
-            std::println(stderr, "Error in {:?}: {}", "Temporary Key Callback", e.what());
-          }
+          auto &app = engine::application::get();
+          app.schedule_layer_manipulation(&engine::application::layers_t::clear);
+          app.schedule_layer_push<temp_control_layer>();
+          game::layers::push_game(next_game, app);
         }
-      });
+      }
+    }
+};
+
+auto engine::startup(application &app) -> void
+{
+  app.schedule_layer_push<temp_control_layer>();
+  game::layers::push_game("boids", app);
 }

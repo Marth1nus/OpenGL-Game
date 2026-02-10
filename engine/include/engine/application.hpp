@@ -16,16 +16,19 @@ namespace engine
       using clock   = std::chrono::steady_clock;
       using layer_t = struct layer
       {
+          using clock        = application::clock;
           using update_delay = std::chrono::duration<double>;
           /**/ virtual ~layer() noexcept {}
-          auto virtual update() -> update_delay { return update_delay::max(); }
-          auto virtual render() -> void = 0;
+          auto virtual on_event(std::any const &event_any) -> void { (void)event_any; }
+          auto virtual on_update() -> update_delay { return update_delay::max(); }
+          auto virtual on_render() -> void {}
 
         protected:
           auto inline static app() -> application & { return application::get(); }
       };
-      using layers_t      = std::vector<std::shared_ptr<layer_t>>;
-      using layers_task_t = std::function<void(layers_t &layers)>;
+      using layers_t          = std::vector<std::shared_ptr<layer_t>>;
+      using layers_task_t     = std::function<void(layers_t &layers)>;
+      using event_container_t = std::any;
 
     private:
       auto inline static constinit s_instance = static_cast<application *>(nullptr);
@@ -40,6 +43,7 @@ namespace engine
       using layer_update_schedule_t = std::priority_queue<layer_update_appointment_t,
                                                           std::vector<layer_update_appointment_t>,
                                                           std::greater<layer_update_appointment_t>>;
+      using event_queue_t           = std::vector<event_container_t>;
 
     public:
       /**/ /*  */ application();
@@ -79,19 +83,40 @@ namespace engine
       }
       auto /*  */ schedule_layer_pop(std::shared_ptr<layer_t const> layer) -> void;
 
-      auto inline get_window /*   */ () const /*    */ -> auto /* */ & { return *runtime_assert(m_window, "null {} access", "main window"); }
-      auto inline get_renderer /* */ () const noexcept -> auto /* */ & { return m_renderer; }
-      auto inline get_renderer /* */ () /* */ noexcept -> auto /* */ & { return m_renderer; }
-      auto inline get_layers /*   */ () const noexcept -> auto /*   */ { return std::span{m_layers}; }
+      template <typename T, typename... Args>
+        requires(std::constructible_from<T, Args...>)
+      auto inline queue_event(Args &&...args) -> void
+      {
+        m_events.emplace_back(std::in_place_type<T>, std::forward<Args>(args)...);
+      }
+      template <typename T>
+      auto inline queue_event(T &&event) -> void
+      {
+        return queue_event<std::remove_cvref_t<T>, T>(std::forward<T>(event));
+      }
+
+      auto inline get_window /*               */ () const /*    */ -> auto /* */ & { return *runtime_assert(m_window, "null {} access", "main window"); }
+      auto inline get_renderer /*             */ () const noexcept -> auto /* */ & { return m_renderer; }
+      auto inline get_renderer /*             */ () /* */ noexcept -> auto /* */ & { return m_renderer; }
+      auto inline get_layers /*               */ () const noexcept -> auto /*   */ { return std::span{m_layers}; }
+      auto inline get_target_render_period /* */ () const noexcept -> auto /*   */ { return /* */ m_target_render_period.count(); }
+      auto inline get_target_render_rate /*   */ () const noexcept -> auto /*   */ { return 1.0 / m_target_render_period.count(); }
+
+      auto inline set_target_render_period /* */ (double value) /* */ noexcept -> auto const & { return m_target_render_period = /* */ value * std::chrono::seconds(1); }
+      auto inline set_target_render_rate /*   */ (double value) /* */ noexcept -> auto const & { return m_target_render_period = 1.0 / value * std::chrono::seconds(1); }
 
       auto /*  */ run() -> int;
 
     private:
-      GLFWwindow                *m_window{};
-      renderer                   m_renderer{};
-      layers_t                   m_layers{};
-      layer_update_schedule_t    m_layer_update_schedule{};
-      std::vector<layers_task_t> m_layers_tasks{};
+      GLFWwindow                   *m_window                = {};
+      renderer                      m_renderer              = {};
+      layers_t                      m_layers                = {};
+      layer_update_schedule_t       m_layer_update_schedule = {};
+      event_queue_t                 m_events                = {};
+      event_queue_t                 m_events_swap           = {};
+      std::vector<layers_task_t>    m_layers_tasks          = {};
+      std::chrono::duration<double> m_target_render_period  = std::chrono::seconds(1) * 1.0 / 60.0;
+      clock::time_point             m_render_appointment    = clock::now();
   };
   auto startup(application &app) -> void;
 } // namespace engine

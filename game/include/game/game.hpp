@@ -20,7 +20,7 @@ namespace game::layers
   struct clear;
   struct boids;
   struct game_of_life;
-  
+
   template <typename T>
   auto inline constexpr layer_name_unchecked = static_cast<char const *>(nullptr);
 #define TEMPLATE_SPECIALIZE(layer_type) \
@@ -47,7 +47,7 @@ struct game::layers::clear : layer
     glm::vec4 color = {0.1f, 0.1f, 0.1f, 1.0f};
     /**/ clear(glm::vec4 color) noexcept : color{color} {}
     /**/ clear() noexcept = default;
-    auto render() -> void override
+    auto on_render() -> void override
     {
       glClearColor(color.r, color.g, color.b, color.a);
       glClear(GL_COLOR_BUFFER_BIT);

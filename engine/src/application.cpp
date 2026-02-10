@@ -1,4 +1,5 @@
 #include <engine/application.hpp>
+#include <engine/events.hpp>
 
 #if /* */ defined(INIT_GLAD) or defined(RUN_MAIN_LOOP)
 #error "Macro name collision"
@@ -12,11 +13,13 @@
 
 #if /* */ defined(__EMSCRIPTEN__)
 #include <emscripten.h>
-#define RUN_MAIN_LOOP []<typename T>(T &main_loop) static            \
-{                                                                    \
-  auto static constinit s_main_loop_ptr = static_cast<T *>(nullptr); \
-  /*                 */ s_main_loop_ptr = &main_loop;                \
-  ::emscripten_set_main_loop(+[] static { if (not (*s_main_loop_ptr)()) ::emscripten_cancel_main_loop(); }, 0, 1);                  \
+#define RUN_MAIN_LOOP []<typename T>(T &main_loop) static                               \
+{                                                                                       \
+  auto static constinit s_main_loop_ptr = static_cast<T *>(nullptr);                    \
+  /*  */ runtime_assert(s_main_loop_ptr == nullptr, "application singleton violation"); \
+  /*                 */ s_main_loop_ptr = &main_loop;                                   \
+  ::emscripten_set_main_loop(+[] static { if (not (*s_main_loop_ptr)()) ::emscripten_cancel_main_loop(); }, 0, 1);                                     \
+  /*                 */ s_main_loop_ptr = nullptr;                                      \
 }
 #else  // defined(__EMSCRIPTEN__)
 #define RUN_MAIN_LOOP []<typename T>(T &main_loop) static { while (main_loop()); }
@@ -31,6 +34,92 @@ engine::application::application()
   runtime_assert(m_window, "{} init fail", "window");
   glfwMakeContextCurrent(m_window);
   runtime_assert(INIT_GLAD(glfwGetProcAddress), "{} init fail", "glad");
+  /* glfw event callbacks */ if (true)
+  {
+    using namespace engine::events::glfw;
+    glfwSetKeyCallback(
+        m_window,
+        +[](GLFWwindow *window, int key, int scancode, int action, int mods)
+        { application::get().queue_event(key_event{window, key, scancode, action, mods}); });
+    glfwSetCharCallback(
+        m_window,
+        +[](GLFWwindow *window, unsigned int codepoint)
+        { application::get().queue_event(char_event{window, codepoint}); });
+    glfwSetDropCallback(
+        m_window,
+        +[](GLFWwindow *window, int path_count, const char *paths[])
+        { application::get().queue_event(drop_event{window, std::vector<std::filesystem::path>{paths, paths + path_count}}); });
+    glfwSetScrollCallback(
+        m_window,
+        +[](GLFWwindow *window, double xoffset, double yoffset)
+        { application::get().queue_event(scroll_event{window, {xoffset, yoffset}}); });
+    /* TODO: unimplemented in emscripten. disabled for now. */ if (0)
+      glfwSetCharModsCallback(
+          m_window,
+          +[](GLFWwindow *window, unsigned int codepoint, int mods)
+          { application::get().queue_event(char_mods_event{window, codepoint, mods}); });
+    glfwSetCursorPosCallback(
+        m_window,
+        +[](GLFWwindow *window, double xpos, double ypos)
+        { application::get().queue_event(cursor_pos_event{window, {xpos, ypos}}); });
+    glfwSetWindowPosCallback(
+        m_window,
+        +[](GLFWwindow *window, int xpos, int ypos)
+        { application::get().queue_event(window_pos_event{window, {xpos, ypos}}); });
+    glfwSetWindowSizeCallback(
+        m_window,
+        +[](GLFWwindow *window, int width, int height)
+        { application::get().queue_event(window_size_event{window, {width, height}}); });
+    glfwSetCursorEnterCallback(
+        m_window,
+        +[](GLFWwindow *window, int entered)
+        { application::get().queue_event(cursor_enter_event{window, entered == GLFW_TRUE}); });
+    glfwSetWindowCloseCallback(
+        m_window,
+        +[](GLFWwindow *window)
+        { application::get().queue_event(window_close_event{window}); });
+    glfwSetMouseButtonCallback(
+        m_window,
+        +[](GLFWwindow *window, int button, int action, int mods)
+        { application::get().queue_event(mouse_button_event{window, button, action, mods}); });
+    glfwSetWindowFocusCallback(
+        m_window,
+        +[](GLFWwindow *window, int focused)
+        { application::get().queue_event(window_focus_event{window, focused == GLFW_TRUE}); });
+    glfwSetWindowIconifyCallback(
+        m_window,
+        +[](GLFWwindow *window, int iconified)
+        { application::get().queue_event(window_iconify_event{window, iconified == GLFW_TRUE}); });
+    glfwSetWindowRefreshCallback(
+        m_window,
+        +[](GLFWwindow *window)
+        { application::get().queue_event(window_refresh_event{window}); });
+    glfwSetWindowMaximizeCallback(
+        m_window,
+        +[](GLFWwindow *window, int maximized)
+        { application::get().queue_event(window_maximize_event{window, maximized == GLFW_TRUE}); });
+    glfwSetFramebufferSizeCallback(
+        m_window,
+        +[](GLFWwindow *window, int width, int height)
+        { application::get().queue_event(framebuffer_size_event{window, {width, height}}); });
+    glfwSetWindowContentScaleCallback(
+        m_window,
+        +[](GLFWwindow *window, float xscale, float yscale)
+        { application::get().queue_event(window_content_scale_event{window, {xscale, yscale}}); });
+    glfwSetErrorCallback(
+        /* */
+        +[](int error_code, const char *description)
+        { application::get().queue_event(error_event{error_code, description}); });
+    glfwSetMonitorCallback(
+        /* */
+        +[](GLFWmonitor *monitor, int event)
+        { application::get().queue_event(monitor_event{monitor, event}); });
+    /* TODO: Figure out why this hangs on windows then remove this line */ if (0)
+      glfwSetJoystickCallback(
+          /* */
+          +[](int jid, int event)
+          { application::get().queue_event(joystick_event{jid, event}); });
+  }
 }
 engine::application::~application()
 {
@@ -59,9 +148,8 @@ auto engine::application::run() -> int
   auto const main_loop = [this] -> bool
   {
     if (glfwWindowShouldClose(m_window)) return false;
-    auto const render_rate        = 60.0 /* TODO: hardcoded 60fps */;
-    auto const render_dt          = std::chrono::duration_cast<clock::duration>(std::chrono::seconds(1) / render_rate);
-    auto const render_appointment = clock::now() + render_dt;
+    auto const render_dt          = std::chrono::duration_cast<clock::duration>(m_target_render_period);
+    auto const render_appointment = std::exchange(m_render_appointment, std::max(m_render_appointment, clock::now()) + render_dt);
     /* layer tasks   */ if (not m_layers_tasks.empty())
     {
       for (auto &task : std::exchange(m_layers_tasks, {}))
@@ -104,6 +192,23 @@ auto engine::application::run() -> int
     /* events        */ if (true)
     {
       glfwPollEvents();
+      std::swap(m_events, m_events_swap);
+      m_events.reserve(m_events_swap.capacity());
+      for (auto const &event : m_events_swap)
+      {
+        for (auto const &layer : m_layers)
+        {
+          try
+          {
+            layer->on_event(event);
+          }
+          catch (std::exception const &e)
+          {
+            std::println(stderr, "Error in {:?}: {}", "Layer events", e.what());
+          }
+        }
+      }
+      m_events_swap.clear();
     }
     /* update layers */ while (not m_layer_update_schedule.empty())
     {
@@ -115,7 +220,7 @@ auto engine::application::run() -> int
       std::this_thread::sleep_until(appointment);
       try
       {
-        auto const update_delay          = layer.lock()->update();
+        auto const update_delay          = layer.lock()->on_update();
         auto const update_delay_duration = std::chrono::duration_cast<clock::duration>(update_delay);
         auto const next_appointment      = std::max(clock::now(), appointment + update_delay_duration);
         m_layer_update_schedule.push({next_appointment, index, layer});
@@ -140,7 +245,7 @@ auto engine::application::run() -> int
       {
         try /* TODO: consider enforcing `layer::render` to be `noexcept` */
         {
-          layer->render();
+          layer->on_render();
         }
         catch (std::exception const &e)
         {

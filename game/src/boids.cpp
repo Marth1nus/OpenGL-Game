@@ -126,7 +126,7 @@ struct game::layers::boids : layer
     }
 
   public:
-    auto update() -> update_delay override
+    auto on_update() -> update_delay override
     {
       auto const update_start     = std::chrono::steady_clock::now();
       auto const dt               = 1.0f / m_settings.tick_rate;
@@ -282,7 +282,7 @@ struct game::layers::boids : layer
       m_tick++;
       return static_cast<update_delay>(dt);
     }
-    auto render() -> void override
+    auto on_render() -> void override
     {
       glBindBuffer(GL_ARRAY_BUFFER, m_opengl.vbo);
       if (m_render_tick != m_tick)

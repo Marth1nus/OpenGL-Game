@@ -115,7 +115,7 @@ struct game::layers::game_of_life : layer
     }
 
   public:
-    auto update() -> update_delay override
+    auto on_update() -> update_delay override
     {
       auto const update_start = std::chrono::steady_clock::now();
       auto const even_tick    = m_tick % 2 == 0;
@@ -164,7 +164,7 @@ struct game::layers::game_of_life : layer
       m_tick++;
       return update_delay(1.0) / m_settings.tick_rate;
     }
-    auto render() -> void override
+    auto on_render() -> void override
     {
       auto const even_tick = m_tick % 2 == 0;
       auto const tid       = even_tick ? m_handles.tid0 : m_handles.tid1;

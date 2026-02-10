@@ -12,7 +12,10 @@
     "GLES",
     "glfw",
     "gmock",
+    "iconified",
+    "Iconify",
     "IWYU",
+    "LASTEXITCODE",
     "Lsizei",
     "Lsizeiptr",
     "MSVC",
@@ -32,7 +35,9 @@
     "WEBGL",
     "Werror",
     "Wextra",
-    "Wpedantic"
+    "Wpedantic",
+    "xoffset",
+    "yscale"
   ],
   "liveServer.settings.root": "/web/public/"
 }

@@ -15,6 +15,7 @@ target_include_directories(engine PUBLIC include)
 target_link_libraries(engine
   PRIVATE enable_warnings
   PUBLIC glm::glm)
+target_precompile_headers(engine PUBLIC include/engine/core.hpp)
 
 # Link GLFW
 if(EMSCRIPTEN)

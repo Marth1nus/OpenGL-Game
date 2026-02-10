@@ -22,10 +22,10 @@ auto engine::utilities::print_table_from_spans(std::span<std::span<print_table_c
   auto col     = std::pmr::string{&col_mbr};
   str.reserve(str_buf.size());
   col.reserve(col_buf.size());
-  for (auto const &[i, columns] : lines | std::views::enumerate)
+  for (auto const &[i, columns] : std::views::zip(std::views::iota(0zu, lines.size()), lines))
   {
     std::format_to(std::back_inserter(str), "\033[{};0H\033[999C\033[{}D", 1zu + i, columns.size() * 16zu + 4zu);
-    for (auto const &[j, column] : columns | std::views::enumerate)
+    for (auto const &[j, column] : std::views::zip(std::views::iota(0zu, columns.size()), columns))
     {
       col.clear();
       std::visit(
@@ -38,7 +38,7 @@ auto engine::utilities::print_table_from_spans(std::span<std::span<print_table_c
             else
               std::format_to(std::back_inserter(col), "{}", value);
           },
-          column);
+          column.variant);
       auto const color = std::array{6, 2}.at((columns.size() - j) % 2zu);
       std::format_to(std::back_inserter(str), "\033[4{}m {:>16} ", color, col);
     }
