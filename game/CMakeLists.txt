@@ -8,7 +8,8 @@ add_library(game STATIC
   src/startup.cpp
 
 )
-target_include_directories(game PUBLIC include)
+target_include_directories(game
+  PUBLIC include)
 target_link_libraries(game
   PRIVATE enable_warnings
   PUBLIC engine)

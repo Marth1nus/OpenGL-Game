@@ -12,7 +12,7 @@
 #define fseek64 ::fseeko
 #endif // defined(_WIN32) or defined(_WIN64)
 
-auto engine::utilities::print_table_from_spans(std::span<std::span<print_table_column_t const> const> const lines) -> void
+auto engine::utilities::print_ansi_table_from_spans(std::span<std::span<print_table_column_t const> const> const lines) -> void
 {
   auto str_buf = std::array<char, 0x01'00zu * print_table_lines_inline_buffer_count>{};
   auto str_mbr = std::pmr::monotonic_buffer_resource{str_buf.data(), str_buf.size()};
@@ -32,11 +32,11 @@ auto engine::utilities::print_table_from_spans(std::span<std::span<print_table_c
           [&col]<typename T>(T const &value)
           {
             /**/ if constexpr (std::floating_point<T>)
-              std::format_to(std::back_inserter(col), "{:7.6f}", value);
+              std::format_to(std::back_inserter(col), "{:.3f}", value);
             else if constexpr (std::integral<T>)
-              std::format_to(std::back_inserter(col), "{:7} {:6}", value, "");
+              std::format_to(std::back_inserter(col), "{} {:3}", value, "");
             else
-              std::format_to(std::back_inserter(col), "{}", value);
+              std::format_to(std::back_inserter(col), "{} {:3}", value, "");
           },
           column.variant);
       auto const color = std::array{6, 2}.at((columns.size() - j) % 2zu);
@@ -44,16 +44,19 @@ auto engine::utilities::print_table_from_spans(std::span<std::span<print_table_c
     }
     std::format_to(std::back_inserter(str), "\033[m");
   }
+#if /* */ defined(EMSCRIPTEN)
+  std::format_to(std::back_inserter(str), "\r\n");
+#endif // defined(EMSCRIPTEN)
   std::print("\033[s{}\033[u", str);
 }
-auto engine::utilities::print_table(std::initializer_list<std::initializer_list<print_table_column_t>> lines) -> void
+auto engine::utilities::print_ansi_table(std::initializer_list<std::initializer_list<print_table_column_t>> lines) -> void
 {
   using lines_spans_value_t = std::span<print_table_column_t const>;
   alignas(lines_spans_value_t) auto
              lines_buf   = std::array<std::byte, sizeof(lines_spans_value_t) * print_table_lines_inline_buffer_count>{};
   auto       lines_mbr   = std::pmr::monotonic_buffer_resource{lines_buf.data(), lines_buf.size()};
   auto const lines_spans = std::pmr::vector<lines_spans_value_t>{std::from_range, lines | std::views::transform(static_cast_lambda<lines_spans_value_t>), &lines_mbr};
-  print_table_from_spans(lines_spans);
+  print_ansi_table_from_spans(lines_spans);
 }
 auto engine::utilities::read_all(char const *const file_path, char const *const mode) -> std::expected<std::string, std::error_code>
 {

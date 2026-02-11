@@ -6,9 +6,14 @@ body {
   gap: 0.5em;
 }
 #canvas {
-  width: 98vw;
-  height: 98vh;
-  border: 1px dashed gray;
+  width: 90vw;
+  height: 90vh;
+  border: 0.2em inset gray;
+}
+#demo-state-buttons {
+  display: grid;
+  grid-column: auto;
+  gap: 0.5em;
 }
 #output {
   resize: none;
@@ -17,4 +22,5 @@ body {
   overflow: scroll;
   color: white;
   padding: 0.5em;
+  border: 0.2em inset gray;
 }

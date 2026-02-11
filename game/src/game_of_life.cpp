@@ -151,14 +151,14 @@ struct game::layers::game_of_life : layer
       auto const cycle_duration            = std::chrono::duration_cast<std::chrono::duration<double>>(cycle_end /*  */ - cycle_start /*  */).count();
       m_statistics.average_update_duration = (m_statistics.average_update_duration /* */ * 99.0 + 1.0 * update_duration /* */) / 100.0;
       m_statistics.average_cycle_duration  = (m_statistics.average_cycle_duration /*  */ * 99.0 + 1.0 * cycle_duration /*  */) / 100.0;
-      utilities::print_table({
+      utilities::print_ansi_table({
           {"        title", "Game Of Life"},
           {"         tick", m_tick},
-          {"update/cycle%", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration * 100.0},
-          {"     s/update", /* */ m_statistics.average_update_duration},
-          {"    updates/s", 1.0 / m_statistics.average_update_duration},
-          {"      s/cycle", /* */ m_statistics.average_cycle_duration},
-          {"     cycles/s", 1.0 / m_statistics.average_cycle_duration},
+          {"update/cycle%", 0100.0 * m_statistics.average_update_duration / m_statistics.average_cycle_duration},
+          {"    ms/update", 1000.0 * m_statistics.average_update_duration},
+          {"    ms/ cycle", 1000.0 * m_statistics.average_cycle_duration},
+          {"    updates/s", 0001.0 / m_statistics.average_update_duration},
+          {"     cycles/s", 0001.0 / m_statistics.average_cycle_duration},
       });
 
       m_tick++;
@@ -253,17 +253,16 @@ struct game::layers::game_of_life : layer
       }
     )glsl"};
 };
-namespace game // make_layer<game_of_life>, push_game<game_of_life>
+template <>
+auto game::layers::push_layer<game::layers::game_of_life>(bool game_layers, engine::application &app) -> void
 {
-  template <>
-  auto layers::make_layer<layers::game_of_life>() -> std::shared_ptr<layer>
+  if (not game_layers)
   {
-    return std::make_shared<game_of_life>();
+    app.schedule_layer_push<game_of_life>();
   }
-  template <>
-  auto layers::push_game<layers::game_of_life>(engine::application &app) -> void
+  else
   {
     app.schedule_layer_push<clear>(-1, glm::vec4{0.0f, 0.5f, 0.0f, 1.0f});
     app.schedule_layer_push<game_of_life>();
   }
-} // namespace game
+}

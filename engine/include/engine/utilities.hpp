@@ -58,8 +58,8 @@ namespace engine::utilities
       std::variant<std::string_view, intmax_t, uintmax_t, double_t> variant = "";
   };
   auto inline constexpr print_table_lines_inline_buffer_count = 16zu;
-  auto /*  */ /*     */ print_table_from_spans(std::span<std::span<print_table_column_t const> const> const lines) -> void;
-  auto /*  */ /*     */ print_table(std::initializer_list<std::initializer_list<print_table_column_t>> lines) -> void;
+  auto /*  */ /*     */ print_ansi_table_from_spans(std::span<std::span<print_table_column_t const> const> const lines) -> void;
+  auto /*  */ /*     */ print_ansi_table(std::initializer_list<std::initializer_list<print_table_column_t>> lines) -> void;
 
   auto /*  */ /*     */ read_all(char const *const /*      */ file_path, char const *const mode = "r") -> std::expected<std::string, std::error_code>;
   auto inline /*     */ read_all(std::filesystem::path const &file_path, char const *const mode = "r") -> decltype(read_all(file_path.string().c_str(), mode))

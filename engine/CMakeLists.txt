@@ -11,24 +11,11 @@ add_library(engine STATIC
   src/utilities.cpp
 
 )
-target_include_directories(engine PUBLIC include)
+target_include_directories(engine
+  PUBLIC include)
 target_link_libraries(engine
   PRIVATE enable_warnings
-  PUBLIC glm::glm)
-target_precompile_headers(engine PUBLIC include/engine/core.hpp)
+  PUBLIC glm glfw opengl)
+target_precompile_headers(engine
+  PUBLIC include/engine/core.hpp)
 
-# Link GLFW
-if(EMSCRIPTEN)
-  target_link_options(engine PUBLIC -sUSE_GLFW=3)
-else()
-  target_link_libraries(engine PUBLIC glfw)
-endif()
-
-# Link OpenGL ES 3.2
-if(EMSCRIPTEN)
-  target_link_options(engine PUBLIC -sUSE_WEBGL2=1 -sFULL_ES3=1)
-elseif(MSVC)
-  target_link_libraries(engine PUBLIC glad)
-else()
-  target_link_libraries(engine PUBLIC GLESv2 EGL)
-endif()

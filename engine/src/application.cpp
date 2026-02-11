@@ -30,6 +30,9 @@ engine::application::application()
   runtime_assert(not s_instance, "application singleton violation");
   s_instance = this;
   runtime_assert(glfwInit(), "{} init fail", "glfw");
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
   m_window = glfwCreateWindow(720, 720, "game", nullptr, nullptr); /* TODO: hardcoded parameters */
   runtime_assert(m_window, "{} init fail", "window");
   glfwMakeContextCurrent(m_window);
@@ -108,7 +111,7 @@ engine::application::application()
         { application::get().queue_event(window_content_scale_event{window, {xscale, yscale}}); });
     glfwSetErrorCallback(
         /* */
-        +[](int error_code, const char *description)
+        +[](int error_code, char const *description)
         { application::get().queue_event(error_event{error_code, description}); });
     glfwSetMonitorCallback(
         /* */

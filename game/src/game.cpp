@@ -1,45 +1,42 @@
+#include <engine/events.hpp>
 #include <game/game.hpp>
 
-template <>
-auto game::layers::make_layer<game::layers::clear>() -> std::shared_ptr<layer>
-{
-  return std::make_shared<clear>();
-}
-template <>
-auto game::layers::push_game<game::layers::clear>(engine::application &app) -> void
-{
-  app.schedule_layer_push<clear>();
-}
+static_assert([]<typename... T>(std::variant<T *...>)
+              { return (game::layers::named_layer<T> and ...); }(game::layers::named_layer_ptr_variant_t{}),
+              "missing layer name in <game/game.hpp>");
 
-using namespace game::layers;
-using named_layer_map_mapped_t /* */ = struct named_layer_map_mapped_t
+struct game::layers::keyboard_control_later : engine::application::layer
 {
-    decltype(&make_layer /* */<clear>) make_layer = {};
-    decltype(&push_game /*  */<clear>) push_game  = {};
+    auto inline static constexpr layers = []<typename... T>(std::variant<T *...>)
+    { return std::array{layer_name<T>...}; }(game::layers::named_layer_ptr_variant_t{});
+    auto on_event(std::any const &event_any) -> void override
+    {
+      auto const event_ptr = std::any_cast<engine::events::key_event>(&event_any);
+      if (not event_ptr) return;
+      auto const &event = *event_ptr;
+      if (not((event.mods & GLFW_MOD_ALT) and
+              (event.action == GLFW_PRESS))) return;
+      static_assert(GLFW_KEY_9 - GLFW_KEY_0 == 9);
+      auto const next_game_i     = event.key - GLFW_KEY_0;
+      auto const next_game_i_max = std::min(9, static_cast<int>(layers.size()) - 1);
+      if (not(0 <= next_game_i and next_game_i <= next_game_i_max)) return;
+      app().schedule_layer_manipulation(&engine::application::layers_t::clear);
+      push_layer("keyboard_control_later", false, app());
+      push_layer(layers.at(next_game_i), true, app());
+    }
 };
-auto const named_layer_map = []<typename... T>()
+template <>
+auto game::layers::push_layer<game::layers::keyboard_control_later>(bool game_layers, engine::application &app) -> void
 {
-  return std::unordered_map{std::pair{
-      std::string_view{layer_name<T>},
-      named_layer_map_mapped_t{
-          .make_layer = &make_layer<T>,
-          .push_game  = &push_game<T>,
-      }}...};
-}.operator()<    //
-    clear,       //
-    boids,       //
-    game_of_life //
-    >();
-
-auto game::layers::make_layer /* */ (std::string_view name /*                     */) -> std::shared_ptr<layer>
-{
-  runtime_assert(named_layer_map.contains(name), "unknown layer name {:?}", name);
-  auto const make_layer = runtime_assert(named_layer_map.at(name).make_layer, "function nullptr in {:?}:{:?}", "make_layer", name);
-  return make_layer();
+  app.schedule_layer_push<keyboard_control_later>();
+  if (not game_layers) return;
+  push_layer(keyboard_control_later::layers.at(1), true, app);
 }
-auto game::layers::push_game /*  */ (std::string_view name, engine::application &app) -> void /*             */
+
+const game::layers::named_layer_map_t game::layers::named_layer_map = []<typename... T>(std::variant<T *...> &&)
+{ return std::unordered_map{std::pair{std::string_view{layer_name<T>}, &push_layer<T>}...}; }(game::layers::named_layer_ptr_variant_t{});
+auto game::layers::push_layer(std::string_view name, bool game_layers, engine::application &app) -> void
 {
   runtime_assert(named_layer_map.contains(name), "unknown layer name {:?}", name);
-  auto const push_game = runtime_assert(named_layer_map.at(name).push_game, "function nullptr in {:?}:{:?}", "push_game", name);
-  return push_game(app);
+  return named_layer_map.at(name)(game_layers, app);
 }

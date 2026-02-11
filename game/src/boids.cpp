@@ -267,14 +267,14 @@ struct game::layers::boids : layer
       m_statistics.average_neighbors        = (m_statistics.average_neighbors /*       */ * 99.0 + 1.0 * average_neighbors /*  */) / 100.0;
       m_statistics.average_update_duration  = (m_statistics.average_update_duration /* */ * 99.0 + 1.0 * update_duration /*    */) / 100.0;
       m_statistics.average_cycle_duration   = (m_statistics.average_cycle_duration /*  */ * 99.0 + 1.0 * cycle_duration /*     */) / 100.0;
-      utilities::print_table({
+      utilities::print_ansi_table({
           {"        title", "Boids"},
           {"         tick", m_tick},
-          {"update/cycle%", /* */ m_statistics.average_update_duration / m_statistics.average_cycle_duration * 100.0},
-          {"     s/update", /* */ m_statistics.average_update_duration},
-          {"    updates/s", 1.0 / m_statistics.average_update_duration},
-          {"      s/cycle", /* */ m_statistics.average_cycle_duration},
-          {"     cycles/s", 1.0 / m_statistics.average_cycle_duration},
+          {"update/cycle%", 0100.0 * m_statistics.average_update_duration / m_statistics.average_cycle_duration},
+          {"    ms/update", 1000.0 * m_statistics.average_update_duration},
+          {"    ms/ cycle", 1000.0 * m_statistics.average_cycle_duration},
+          {"    updates/s", 0001.0 / m_statistics.average_update_duration},
+          {"     cycles/s", 0001.0 / m_statistics.average_cycle_duration},
           {"ave neighbors", m_statistics.average_neighbors},
           {"max neighbors", m_statistics.max_neighbors},
           {"    subspaces", subspaces.size()},
@@ -368,17 +368,16 @@ struct game::layers::boids : layer
       }
     )glsl"};
 };
-namespace game // make_layer<boids>, push_game<boids>
+template <>
+auto game::layers::push_layer<game::layers::boids>(bool game_layers, engine::application &app) -> void
 {
-  template <>
-  auto layers::make_layer<layers::boids>() -> std::shared_ptr<layer>
+  if (not game_layers)
   {
-    return std::make_shared<boids>();
+    app.schedule_layer_push<boids>();
   }
-  template <>
-  auto layers::push_game<layers::boids>(engine::application &app) -> void
+  else
   {
     app.schedule_layer_push<clear>(-1, glm::vec4{0.15f, 0.05f, 0.5f, 1.0f});
     app.schedule_layer_push<boids>();
   }
-} // namespace game
+}

@@ -2,8 +2,7 @@
 /build/
 
 # Vendor Code (downloaded by CMake)
-/vendor/
-!/vendor/glad/
+/vendor-fetch/
 
 # Web Build Emscripten output
 /web/public/OpenGL-Game.*
