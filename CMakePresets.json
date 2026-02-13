@@ -34,7 +34,7 @@
       "inherits": "native",
       "displayName": "Emscripten Multi-Config",
       "description": "Emscripten web build using Ninja generator",
-      "binaryDir": "${sourceDir}/build/Emscripten",
+      "binaryDir": "${sourceDir}/build/Web",
       "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
       "condition": {
         "type": "notEquals",

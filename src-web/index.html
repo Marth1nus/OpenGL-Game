@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenGL-Game</title>
+    <style>
+      @import url('https://unpkg.com/xterm/css/xterm.css');
+      @keyframes fade-in {
+        0% {
+          border-radius: 30em;
+          opacity: 0;
+          scale: 0.8;
+        }
+        100% {
+          border-radius: 0em;
+          opacity: 1;
+          scale: 1;
+        }
+      }
+      body {
+        display: grid;
+        grid-template-columns: auto;
+        justify-content: center;
+        gap: 0.5em;
+        background: radial-gradient(#222 50%, #000);
+        color: #ccc;
+        & * {
+          color: inherit;
+        }
+      }
+      h1 {
+        width: 96vmin;
+      }
+      #canvas,
+      #canvas-placeholder {
+        width: 96vmin;
+        height: 96vmin;
+        animation: fade-in 0.5s ease-in-out;
+        &:fullscreen {
+          width: 100vw !important;
+          height: 100vh !important;
+        }
+      }
+      #terminal,
+      #terminal-placeholder {
+        width: 96vmin;
+        height: 33vh;
+      }
+      button {
+        border: none;
+        border-radius: 0.5em;
+        background-color: #444;
+        &:hover,
+        &:focus {
+          background-color: #555;
+        }
+      }
+    </style>
+    <script type="module">
+      import 'https://unpkg.com/xterm/lib/xterm.js'
+      import 'https://unpkg.com/xterm-addon-fit/lib/xterm-addon-fit.js'
+      import createModule from './OpenGL-Game.mjs'
+      const { terminal } = (() => {
+        const terminal = new Terminal({
+          cursorBlink: false,
+          rendererType: 'canvas',
+          disableStdin: true,
+        })
+        window.Terminal = terminal
+        const fitAddon = new FitAddon.FitAddon()
+        terminal.loadAddon(fitAddon)
+        const terminalPlaceholderDiv = document.getElementById(
+          'terminal-placeholder',
+        )
+        if (!(terminalPlaceholderDiv instanceof HTMLDivElement))
+          throw new Error('missing terminal placeholder div')
+        const terminalDiv = document.createElement('div')
+        terminalDiv.id = 'terminal'
+        terminal.innerHTML = ''
+        terminal.open(terminalDiv)
+        fitAddon.fit()
+        let terminalResizeTimeout
+        new ResizeObserver(() => {
+          clearTimeout(terminalResizeTimeout)
+          terminalResizeTimeout = setTimeout(() => fitAddon.fit(), 1000)
+        }).observe(terminalDiv)
+        terminalPlaceholderDiv.replaceWith(terminalDiv)
+        return { terminal }
+      })()
+      const { Module } = await (async () => {
+        const canvas = document.createElement('canvas')
+        canvas.id = 'canvas'
+        const moduleConfig = {
+          canvas,
+          print(...args) {
+            terminal.writeln(...args)
+          },
+          printErr(...args) {
+            terminal.writeln(...args)
+          },
+          onRuntimeInitialized() {
+            const { clientWidth, clientHeight } = this.canvas
+            this.setCanvasSize(clientWidth, clientHeight)
+            const canvas_placeholder =
+              document.getElementById('canvas-placeholder')
+            if (!(canvas_placeholder instanceof HTMLElement))
+              throw new Error('missing canvas placeholder div')
+            canvas_placeholder.replaceWith(canvas)
+          },
+        }
+        const Module = await createModule(moduleConfig)
+        window.Module = Module
+        let canvasResizeTimeout
+        new ResizeObserver(() => {
+          clearTimeout(canvasResizeTimeout)
+          canvasResizeTimeout = setTimeout(() => {
+            Module.setCanvasSize(canvas.clientWidth, canvas.clientHeight)
+          }, 100)
+        }).observe(canvas)
+        return { Module }
+      })()
+      const { keyComboButtons } = (() => {
+        const keyComboButtonsDiv = document.getElementById(
+          'key-combo-buttons-placeholder',
+        )
+        if (!(keyComboButtonsDiv instanceof HTMLElement))
+          throw new Error('no buttons placeholder div')
+        const keyCombos = [
+          ['Start Demo "Boids"' /*        Alt+1 */, 18, 48 + 1],
+          ['Start Demo "Game of life"' /* Alt+2 */, 18, 48 + 2],
+        ]
+        const keyComboButtons = keyCombos.map(combo => {
+          const [name, ...keyCodes] = combo
+          const button = document.createElement('button')
+          button.innerHTML = `<pre>${name.padEnd(32)}</pre>`
+          button.addEventListener('click', () => {
+            for (const eventType of ['keydown', 'keyup'])
+              for (const keyCode of keyCodes)
+                canvas.dispatchEvent(new KeyboardEvent(eventType, { keyCode }))
+          })
+          return button
+        })
+        keyComboButtonsDiv.replaceWith(...keyComboButtons)
+        return { keyComboButtons }
+      })()
+    </script>
+  </head>
+  <body>
+    <h1>
+      <a href="https://github.com/Marth1nus/OpenGL-Game">OpenGL-Game</a>
+      Web Demo
+    </h1>
+    <div id="canvas-placeholder">🔃 Loading... 🔃</div>
+    <div id="terminal-placeholder">🔃 Loading... 🔃</div>
+    <div id="key-combo-buttons-placeholder">🔃 Loading... 🔃</div>
+    <button onclick="window.Module.requestFullscreen(false, true)">
+      <pre>Fullscreen</pre>
+    </button>
+    <footer>
+      <a href="https://emscripten.org/">Compiled using Emscripten</a>
+    </footer>
+  </body>
+</html>

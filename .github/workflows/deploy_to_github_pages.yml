@@ -46,12 +46,12 @@ jobs:
         run: cmake --preset web
 
       - name: Build WebAssembly
-        run: cmake --build --preset web --config Release --verbose
+        run: cmake --build --preset web --config Release --verbose --parallel
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: './web/public/'
+          path: './build/Web/Release/'
 
   deploy:
     needs: build
