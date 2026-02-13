@@ -32,16 +32,15 @@ target_link_libraries(${PROJECT_NAME}
 if(EMSCRIPTEN)
   set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME ${PROJECT_NAME}
-    SUFFIX .html)
+    SUFFIX .mjs)
   target_link_options(${PROJECT_NAME} PRIVATE
-    -sEXPORTED_RUNTIME_METHODS=['setCanvasSize','FS']
-    -sEXCEPTION_CATCHING_ALLOWED=['*'])
-  set(WEB_PUBLIC_DIR ${CMAKE_SOURCE_DIR}/web/public)
+    -sEXPORTED_RUNTIME_METHODS=['FS','setCanvasSize','requestFullscreen']
+    -sEXCEPTION_CATCHING_ALLOWED=['*']
+    -sEXPORT_NAME='createModule'
+    -sMODULARIZE=1
+    -sEXPORT_ES6=1)
   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${WEB_PUBLIC_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE_DIR:${PROJECT_NAME}>/${PROJECT_NAME}.html ${WEB_PUBLIC_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE_DIR:${PROJECT_NAME}>/${PROJECT_NAME}.wasm ${WEB_PUBLIC_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE_DIR:${PROJECT_NAME}>/${PROJECT_NAME}.js ${WEB_PUBLIC_DIR}
-    COMMENT "Copying Emscripten output files to ${WEB_PUBLIC_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src-web/index.html $<TARGET_FILE_DIR:${PROJECT_NAME}>
+    COMMENT "Copying index.html output files to $<TARGET_FILE_DIR:${PROJECT_NAME}>"
   )
 endif()

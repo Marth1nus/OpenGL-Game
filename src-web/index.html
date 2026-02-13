@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenGL-Game</title>
+    <style>
+      @import url('https://unpkg.com/xterm/css/xterm.css');
+      body {
+        display: grid;
+        grid-template-columns: min-content;
+        justify-content: center;
+        gap: 0.5em;
+        background: radial-gradient(#222 50%, #000);
+      }
+      #canvas {
+        width: 96vmin;
+        height: 96vmin;
+        &:fullscreen {
+          width: 100vw !important;
+          height: 100vh !important;
+        }
+      }
+      #terminal {
+        width: 96vmin;
+        height: 33vh;
+      }
+      button {
+        border: none;
+        border-radius: 0.5em;
+        background-color: #444;
+        color: #ccc;
+        &:hover,
+        &:focus {
+          background-color: #555;
+        }
+      }
+    </style>
+    <script type="module">
+      import 'https://unpkg.com/xterm/lib/xterm.js'
+      import 'https://unpkg.com/xterm-addon-fit/lib/xterm-addon-fit.js'
+      import createModule from './OpenGL-Game.mjs'
+      const { terminal } = (() => {
+        const terminal = new Terminal({
+          cursorBlink: false,
+          rendererType: 'canvas',
+          disableStdin: true,
+        })
+        window.Terminal = terminal
+        const fitAddon = new FitAddon.FitAddon()
+        terminal.loadAddon(fitAddon)
+        const terminalDiv = document.getElementById('terminal')
+        if (!(terminalDiv instanceof HTMLDivElement))
+          throw new Error('no terminal div')
+        terminal.open(terminalDiv)
+        fitAddon.fit()
+        let terminalResizeTimeout
+        new ResizeObserver(() => {
+          clearTimeout(terminalResizeTimeout)
+          terminalResizeTimeout = setTimeout(() => fitAddon.fit(), 100)
+        }).observe(terminalDiv)
+        return { terminal }
+      })()
+      const { Module } = await (async () => {
+        const canvas = document.getElementById('canvas')
+        if (!(canvas instanceof HTMLCanvasElement))
+          throw new Error('no canvas div')
+        const moduleConfig = {
+          canvas,
+          print(...args) {
+            terminal.writeln(...args)
+          },
+          printErr(...args) {
+            terminal.writeln(...args)
+          },
+          onRuntimeInitialized() {
+            const { clientWidth, clientHeight } = this.canvas
+            this.setCanvasSize(clientWidth, clientHeight)
+          },
+        }
+        const Module = await createModule(moduleConfig)
+        window.Module = Module
+        let canvasResizeTimeout
+        new ResizeObserver(() => {
+          clearTimeout(canvasResizeTimeout)
+          canvasResizeTimeout = setTimeout(() => {
+            Module.setCanvasSize(canvas.clientWidth, canvas.clientHeight)
+          }, 100)
+        }).observe(canvas)
+        return { Module }
+      })()
+      const { demoButtons } = (() => {
+        const buttonsDiv = document.getElementById('demo-state-buttons')
+        if (!(buttonsDiv instanceof HTMLButtonElement))
+          throw new Error('no buttons div')
+        const demoButtons = ['Boids', 'Game of file'].map((name, i) => {
+          const button = document.createElement('button')
+          button.innerHTML = `<pre>Start Demo ${1 + i} ${`"${name}"`.padEnd(16)}</pre>`
+          button.addEventListener('click', () => {
+            for (const [eventType, keyCode] of [
+              ['keydown' /* Alt */, 18 + 0],
+              ['keydown' /* 1+i */, 49 + i],
+              ['keyup' /*   Alt */, 18 + 0],
+              ['keyup' /*   1+i */, 49 + i],
+            ])
+              canvas.dispatchEvent(new KeyboardEvent(eventType, { keyCode }))
+          })
+          return button
+        })
+        buttonsDiv.replaceWith(...demoButtons)
+        return { demoButtons }
+      })()
+    </script>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="terminal"></div>
+    <button id="demo-state-buttons">
+      <pre>Start Demo 0 "Place Holder"</pre>
+    </button>
+    <button onclick="window.Module.requestFullscreen(false, true)">
+      <pre>Fullscreen</pre>
+    </button>
+  </body>
+</html>

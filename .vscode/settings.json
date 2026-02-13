@@ -46,5 +46,5 @@
     "xoffset",
     "yscale"
   ],
-  "liveServer.settings.root": "/web/public/"
+  "liveServer.settings.root": "./build/Web/Debug/"
 }
