@@ -9,8 +9,10 @@
 #include <concepts>
 #include <expected>
 #include <filesystem>
+#include <forward_list>
 #include <fstream>
 #include <functional>
+#include <list>
 #include <map>
 #include <memory>
 #include <memory_resource>
@@ -33,7 +35,5 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
-/* TODO: consider turning into precompiler header */
 
 #endif // ENGINE_CORE_HPP

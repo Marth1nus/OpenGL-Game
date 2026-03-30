@@ -7,6 +7,7 @@ endmacro()
 # Remote Repos
 macro_FetchContent_Declare(glm #[[    ]] https://github.com/g-truc/glm #[[     ]] 1.0.3 #[[            ]])
 macro_FetchContent_Declare(glfw #[[   ]] https://github.com/glfw/glfw #[[      ]] 3.4 #[[              ]])
+macro_FetchContent_Declare(imgui #[[  ]] https://github.com/ocornut/imgui #[[  ]] v1.92.5-docking #[[  ]])
 
 # GLM
 FetchContent_MakeAvailable(glm)
@@ -27,5 +28,9 @@ elseif(MSVC)
   add_subdirectory(glad)
   target_link_libraries(opengl INTERFACE glad)
 else()
-  target_link_libraries(opengl INTERFACE GLESv2 EGL)
+  find_package(OpenGL REQUIRED)
+  target_link_libraries(opengl INTERFACE OpenGL::GL)
 endif()
+
+# ImGUI
+add_subdirectory(imgui)

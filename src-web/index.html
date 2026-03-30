@@ -120,30 +120,6 @@
         }).observe(canvas)
         return { Module }
       })()
-      const { keyComboButtons } = (() => {
-        const keyComboButtonsDiv = document.getElementById(
-          'key-combo-buttons-placeholder',
-        )
-        if (!(keyComboButtonsDiv instanceof HTMLElement))
-          throw new Error('no buttons placeholder div')
-        const keyCombos = [
-          ['Start Demo "Boids"' /*        Alt+1 */, 18, 48 + 1],
-          ['Start Demo "Game of life"' /* Alt+2 */, 18, 48 + 2],
-        ]
-        const keyComboButtons = keyCombos.map(combo => {
-          const [name, ...keyCodes] = combo
-          const button = document.createElement('button')
-          button.innerHTML = `<pre>${name.padEnd(32)}</pre>`
-          button.addEventListener('click', () => {
-            for (const eventType of ['keydown', 'keyup'])
-              for (const keyCode of keyCodes)
-                canvas.dispatchEvent(new KeyboardEvent(eventType, { keyCode }))
-          })
-          return button
-        })
-        keyComboButtonsDiv.replaceWith(...keyComboButtons)
-        return { keyComboButtons }
-      })()
     </script>
   </head>
   <body>
@@ -153,7 +129,6 @@
     </h1>
     <div id="canvas-placeholder">🔃 Loading... 🔃</div>
     <div id="terminal-placeholder">🔃 Loading... 🔃</div>
-    <div id="key-combo-buttons-placeholder">🔃 Loading... 🔃</div>
     <button onclick="window.Module.requestFullscreen(false, true)">
       <pre>Fullscreen</pre>
     </button>

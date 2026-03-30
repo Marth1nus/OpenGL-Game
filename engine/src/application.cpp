@@ -25,19 +25,22 @@
 #define RUN_MAIN_LOOP []<typename T>(T &main_loop) static { while (main_loop()); }
 #endif // defined(__EMSCRIPTEN__)
 
-engine::application::application()
+/**/ engine::application::application()
 {
   runtime_assert(not s_instance, "application singleton violation");
   s_instance = this;
+  glfwSetErrorCallback(+[](int error, char const *description)
+                       { runtime_assert(false, "GLFW Error 0x{:x}: {}", error, description); });
   runtime_assert(glfwInit(), "{} init fail", "glfw");
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
   m_window = glfwCreateWindow(720, 720, "game", nullptr, nullptr); /* TODO: hardcoded parameters */
   runtime_assert(m_window, "{} init fail", "window");
   glfwMakeContextCurrent(m_window);
   runtime_assert(INIT_GLAD(glfwGetProcAddress), "{} init fail", "glad");
-  /* glfw event callbacks */ if (true)
+  if (auto constexpr attach_glfw_event_callbacks = true;
+      attach_glfw_event_callbacks)
   {
     using namespace engine::events::glfw;
     glfwSetKeyCallback(
@@ -124,27 +127,17 @@ engine::application::application()
           { application::get().queue_event(joystick_event{jid, event}); });
   }
 }
-engine::application::~application()
+/**/ engine::application::~application()
 {
-  m_layers_tasks          = {};
+  m_events                = {};
   m_layer_update_schedule = {};
+  m_layers_tasks          = {};
   m_layers                = {};
   m_renderer              = {};
   m_window                = (glfwDestroyWindow(m_window), nullptr);
   glfwTerminate();
   runtime_assert(s_instance == this, "application singleton violation");
   s_instance = nullptr;
-}
-auto engine::application::schedule_layer_pop(std::shared_ptr<layer_t const> layer) -> void
-{
-  schedule_layer_manipulation(
-      [layer = std::move(layer)](layers_t &layers) mutable
-      {
-        auto const it = std::ranges::find(layers, layer);
-        runtime_assert(it != layers.end(), "layer {} {} in layer stack", static_cast<void const *>(layer.get()), "not");
-        layers.erase(it);
-        layer = {}; // layer destruct here
-      });
 }
 auto engine::application::run() -> int
 {
@@ -153,52 +146,31 @@ auto engine::application::run() -> int
     if (glfwWindowShouldClose(m_window)) return false;
     auto const render_dt          = std::chrono::duration_cast<clock::duration>(m_target_render_period);
     auto const render_appointment = std::exchange(m_render_appointment, std::max(m_render_appointment, clock::now()) + render_dt);
-    /* layer tasks   */ if (not m_layers_tasks.empty())
+
+    /* layer tasks   */ if (not/*     */ m_layers_tasks.empty()) [[unlikely]]
     {
-      for (auto &task : std::exchange(m_layers_tasks, {}))
+      m_layer_update_schedule.mutate()->clear();                   // all layers ref count -1
+      for (auto   layers_mutate_view = layers_mutate_view_t{m_layers, m_layers.size() + m_layers_tasks.size()};
+           auto &&layers_task : std::exchange(m_layers_tasks, {})) // Note `m_layers_tasks` does not maintain capacity
       {
         try
         {
-          task(m_layers);
-          if (m_layers.empty()) m_renderer = {}; /* TODO: Reconsider. Could cause issues later on. */
-          runtime_assert(m_layers_tasks.empty(), "{0:?} can not be scheduled from a {0:?} task", "between frame layer manipulation");
+          layers_task(layers_mutate_view);
         }
         catch (std::exception const &e)
         {
-          std::println(stderr, "Error in {:?}: {}", "between frame layer manipulation", e.what());
-          m_layers_tasks = {};
-        };
+          std::println(stderr, "Error in {:?}: {}", "Layer stack manipulations", e.what());
+        }
       }
-
-      if (auto const nulls = std::ranges::remove(m_layers, nullptr);
-          not nulls.empty() /* remove nulls in m_layers */)
-        m_layers.erase(nulls.begin(), nulls.end());
-
-      auto appointments = std::unordered_map<layer_t const *, clock::time_point>{};
-      appointments.reserve(m_layer_update_schedule.size());
-      while (not m_layer_update_schedule.empty()) // empty out m_layer_update_schedule
-      {
-        auto const [time, index, layer] = m_layer_update_schedule.top();
-        /*                             */ m_layer_update_schedule.pop();
-        if (layer.expired()) continue;
-        auto const [it, inserted] /* */ = appointments.insert({layer.lock().get(), time});
-        runtime_assert(inserted, "layer {} was found twice in the update schedule", static_cast<void *>(layer.lock().get()));
-        (void)index, (void)it;           // unused
-      }
-      for (auto const &layer : m_layers) // populate m_layer_update_schedule
-      {
-        auto const index       = static_cast<size_t>(&layer - m_layers.data());
-        auto const appointment = appointments.contains(layer.get()) ? appointments.at(layer.get()) : clock::now();
-        m_layer_update_schedule.push({appointment, index, layer});
-      }
+      m_layer_update_schedule.mutate()->assign_range(m_layers); // Note all layers ref count +1
     }
-    /* events        */ if (true)
+    /* events        */ if (true) /*                          */ [[likely]]
     {
       glfwPollEvents();
-      std::swap(m_events, m_events_swap);
-      m_events.reserve(m_events_swap.capacity());
-      for (auto const &event : m_events_swap)
+      auto const events_size = m_events.size();
+      for (auto i = 0zu; i < events_size; ++i)
       {
+        auto const &event = m_events.at(i);
         for (auto const &layer : m_layers)
         {
           try
@@ -211,39 +183,50 @@ auto engine::application::run() -> int
           }
         }
       }
-      m_events_swap.clear();
+      m_events.erase(m_events.begin(), m_events.begin() + events_size);
     }
-    /* update layers */ while (not m_layer_update_schedule.empty())
+    /* update layers */ if (not m_layer_update_schedule.empty()) [[likely]]
     {
-      auto const [appointment, index, layer] = m_layer_update_schedule.top();
-      if (render_appointment < appointment or
-          render_appointment < clock::now()) break;
-      m_layer_update_schedule.pop();
-      if (layer.expired()) continue;
-      std::this_thread::sleep_until(appointment);
-      try
+      while (not m_layer_update_schedule.is_heap())
       {
-        auto const update_delay          = layer.lock()->on_update();
-        auto const update_delay_duration = std::chrono::duration_cast<clock::duration>(update_delay);
-        auto const next_appointment      = std::max(clock::now(), appointment + update_delay_duration);
-        m_layer_update_schedule.push({next_appointment, index, layer});
+        std::println("[warning] {}", "update schedule heap corruption");
+        m_layer_update_schedule.restore_heap();
       }
-      catch (std::exception const &e)
+      while (not m_layer_update_schedule.empty())
       {
-        std::println(stderr, "Error in {:?}: {}", "Layer update", e.what());
+        if (render_appointment < clock::now()) break;
+        auto const [layer, appointment] = m_layer_update_schedule.pop();
+        if (not layer) continue;
+        if (render_appointment < appointment)
+        {
+          m_layer_update_schedule.push(layer, appointment);
+          break;
+        }
+        if (appointment > clock::now()) std::this_thread::sleep_until(appointment);
+        try
+        {
+          auto const update_delay          = layer->on_update();
+          auto const update_delay_duration = std::chrono::duration_cast<clock::duration>(update_delay);
+          auto const next_appointment      = std::max(clock::now(), appointment + update_delay_duration);
+          m_layer_update_schedule.push(layer, next_appointment);
+        }
+        catch (std::exception const &e)
+        {
+          std::println(stderr, "Error in {:?}: {}", "Layer update", e.what());
+        }
       }
     }
-    /* render layers */ if (true)
+    /* render layers */ if (true) /*                          */ [[likely]]
     {
-      /* viewport fit: center zoom to fit */ { /* TODO: this feature is hardcoded consider setting up an enum? */
-        int window_width, window_height;
-        glfwGetWindowSize(m_window, &window_width, &window_height);
-        auto const vmax     = std::max(window_width, window_height);
-        auto const window_x = (window_width - vmax) / 2;
-        auto const window_y = (window_height - vmax) / 2;
-        glViewport(window_x, window_y, vmax, vmax);
+      if (render_appointment > clock::now()) std::this_thread::sleep_until(render_appointment);
+      if (true) /* viewport fit: center zoom to fit */ [[likely]]
+      { /* TODO: this feature is hardcoded consider setting up an enum? */
+        auto window_size = glm::i32vec2{};
+        glfwGetWindowSize(m_window, &window_size.x, &window_size.y);
+        auto const vmax       = std::max(window_size.x, window_size.y);
+        auto const window_pos = (window_size - vmax) / 2;
+        glViewport(window_pos.x, window_pos.y, vmax, vmax);
       }
-      std::this_thread::sleep_until(render_appointment);
       for (auto const &layer : get_layers())
       {
         try /* TODO: consider enforcing `layer::render` to be `noexcept` */
@@ -257,6 +240,7 @@ auto engine::application::run() -> int
       }
       glfwSwapBuffers(m_window);
     }
+
     return true;
   };
   RUN_MAIN_LOOP(main_loop); /* equivalent to `while (main_loop());` */

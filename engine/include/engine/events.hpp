@@ -1,3 +1,6 @@
+#ifndef ENGINE_EVENTS_HPP
+#define ENGINE_EVENTS_HPP
+
 #include <engine/application.hpp>
 #include <engine/core.hpp>
 #include <engine/utilities.hpp>
@@ -110,3 +113,5 @@ namespace engine::events::glfw
   };
 } // namespace engine::events::glfw
 namespace engine::events { using namespace glfw; }
+
+#endif // ENGINE_EVENTS_HPP

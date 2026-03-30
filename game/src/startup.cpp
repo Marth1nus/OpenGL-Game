@@ -1,6 +1,7 @@
+#include <game/controls.hpp>
 #include <game/game.hpp>
 
 auto engine::startup(application &app) -> void
 {
-  game::layers::push_layer("keyboard_control_later", true, app);
+  app.schedule_layer_push<game::layers::controls>(nullptr, "boids");
 }
